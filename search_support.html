@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECサイト横断検索ツール</title>
+  <!-- Tailwind CSS (UI用) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Vue 3 (ロジック用) -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #f3f4f6;
+    }
+
+    .site-card {
+      transition: all 0.2s ease;
+    }
+
+    .site-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app" class="min-h-screen p-4 md:p-8 max-w-4xl mx-auto">
+
+    <!-- Header -->
+    <header class="mb-8 text-center">
+      <h1 class="text-3xl font-bold text-gray-800 mb-2">ECサイト横断検索ジェネレーター</h1>
+      <p class="text-gray-600 text-sm">商品名と価格を入れるだけで、ノイズを除去した検索リンクを一括生成します。</p>
+    </header>
+
+    <!-- Input Section -->
+    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        <!-- Keyword Input -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            商品名・型番 <span class="text-red-500">*</span>
+          </label>
+          <input type="text" v-model="keyword" placeholder="例: WH-1000XM5, PlayStation 5"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+        </div>
+
+        <!-- Price Input -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">
+            基準価格 (円)
+          </label>
+          <input type="number" v-model.number="targetPrice" placeholder="例: 40000"
+            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+          <p class="text-xs text-gray-500 mt-1">
+            ※この価格を基準に最低価格フィルターを計算します
+          </p>
+        </div>
+      </div>
+
+      <hr class="border-gray-200 my-4">
+
+      <!-- Options Section -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Filter Option -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">ノイズ除去フィルター</label>
+          <div class="flex items-center space-x-2 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <input type="checkbox" id="priceFilter" v-model="enablePriceFilter"
+              class="w-5 h-5 text-blue-600 rounded focus:ring-blue-500">
+            <label for="priceFilter" class="text-sm text-gray-700 cursor-pointer select-none">
+              基準価格の <span class="font-bold text-red-500">-5%</span> を下限に設定
+            </label>
+          </div>
+          <p v-if="enablePriceFilter && computedMinPrice > 0" class="text-xs text-blue-600 mt-1 ml-1">
+            現在の設定: {{ computedMinPrice.toLocaleString() }}円以上を検索
+          </p>
+        </div>
+
+        <!-- Sort Option -->
+        <div>
+          <label class="block text-sm font-bold text-gray-700 mb-2">並び順</label>
+          <div class="flex space-x-4 bg-gray-50 p-3 rounded-lg border border-gray-200">
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="radio" v-model="sortOrder" value="default" class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">標準</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="radio" v-model="sortOrder" value="asc" class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">安い順</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="radio" v-model="sortOrder" value="desc" class="text-blue-600 focus:ring-blue-500">
+              <span class="text-sm">高い順</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results Section -->
+    <div v-if="keyword" class="grid grid-cols-1 gap-4">
+      <h2 class="text-xl font-bold text-gray-800 mb-2 flex items-center">
+        <span class="mr-2">🔍</span> 生成されたリンク
+      </h2>
+
+      <div v-for="site in sites" :key="site.name" class="site-card bg-white rounded-lg shadow p-4 border-l-4"
+        :class="site.borderColor">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div class="flex-1 w-full">
+            <div class="flex items-center justify-between mb-1">
+              <h3 class="font-bold text-lg text-gray-800">{{ site.name }}</h3>
+              <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 border">
+                {{ sortLabel }}
+              </span>
+            </div>
+            <div class="bg-gray-50 p-2 rounded text-xs text-gray-500 font-mono break-all mb-3 border">
+              {{ site.url }}
+            </div>
+          </div>
+          <div class="flex-shrink-0 w-full md:w-auto">
+            <a :href="site.url" target="_blank" rel="noopener noreferrer"
+              class="block w-full md:w-auto text-center px-6 py-3 text-white rounded-lg font-bold shadow transition hover:opacity-90"
+              :class="site.btnColor">
+              検索する ↗
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty State -->
+    <div v-else class="text-center py-12 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
+      <div class="text-4xl mb-4">👆</div>
+      <h3 class="text-lg font-bold text-gray-500">キーワードを入力してください</h3>
+      <p class="text-gray-400 text-sm mt-2">入力すると自動的に各サイトのURLが生成されます</p>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+
+    createApp({
+      setup() {
+        // State
+        const keyword = ref('');
+        const targetPrice = ref('');
+        const enablePriceFilter = ref(true); // デフォルトON
+        const sortOrder = ref('default'); // default, asc, desc
+
+        // Computed: 最低価格の計算 (5% OFF)
+        const computedMinPrice = computed(() => {
+          if (!targetPrice.value) return 0;
+          // 5%引いた価格 (整数)
+          return Math.floor(targetPrice.value * 0.95);
+        });
+
+        // Computed: 並び順のラベル表示用
+        const sortLabel = computed(() => {
+          if (sortOrder.value === 'asc') return '安い順';
+          if (sortOrder.value === 'desc') return '高い順';
+          return '標準';
+        });
+
+        // Computed: サイトごとのURL生成ロジック
+        const sites = computed(() => {
+          const k = encodeURIComponent(keyword.value.trim());
+          const min = enablePriceFilter.value ? computedMinPrice.value : '';
+
+          return [
+            // Amazon
+            {
+              name: 'Amazon.co.jp',
+              borderColor: 'border-yellow-500',
+              btnColor: 'bg-yellow-500',
+              url: (() => {
+                let url = `https://www.amazon.co.jp/s?k=${k}`;
+                // Amazonの並び順
+                if (sortOrder.value === 'asc') url += '&s=price-asc-rank';
+                if (sortOrder.value === 'desc') url += '&s=price-desc-rank';
+                // Amazonの最低価格 (rhパラメータを使用しない簡易的なlow-priceクエリ)
+                if (min) url += `&low-price=${min}`;
+                return url;
+              })()
+            },
+            // 楽天市場
+            {
+              name: '楽天市場',
+              borderColor: 'border-red-600',
+              btnColor: 'bg-red-600',
+              url: (() => {
+                let url = `https://search.rakuten.co.jp/search/mall/${k}/`;
+                // 楽天の最低価格
+                if (min) url += `?min=${min}`;
+                else url += `?`; // パラメータ連結用
+
+                // 楽天の並び順 (s=2:安い順, s=3:高い順)
+                if (sortOrder.value === 'asc') url += '&s=2';
+                if (sortOrder.value === 'desc') url += '&s=3';
+                return url;
+              })()
+            },
+            // Yahoo!ショッピング
+            {
+              name: 'Yahoo!ショッピング',
+              borderColor: 'border-blue-600',
+              btnColor: 'bg-blue-600',
+              url: (() => {
+                let url = `https://shopping.yahoo.co.jp/search?p=${k}`;
+                // Yahooの最低価格 (pf)
+                if (min) url += `&pf=${min}`;
+                // Yahooの並び順 (ユーザー指定: 安い順 X=12, 高い順 X=13)
+                if (sortOrder.value === 'asc') url += '&X=12';
+                if (sortOrder.value === 'desc') url += '&X=13';
+                return url;
+              })()
+            },
+            // 価格.com
+            {
+              name: '価格.com',
+              borderColor: 'border-blue-900',
+              btnColor: 'bg-blue-900',
+              url: (() => {
+                // 基本URL (search.kakaku.com に変更)
+                let url = `https://search.kakaku.com/${k}/`;
+
+                // パラメータ配列を作成して結合
+                let params = [];
+
+                // 並び順 (sort=priceb:安い順, sort=pricet:高い順)
+                if (sortOrder.value === 'asc') params.push('sort=priceb');
+                else if (sortOrder.value === 'desc') params.push('sort=pricet');
+
+                // 最低価格 (minp)
+                if (min) params.push(`minp=${min}`);
+
+                // パラメータがある場合のみ結合
+                if (params.length > 0) {
+                  url += '?' + params.join('&');
+                }
+                return url;
+              })()
+            },
+            // Qoo10 (新規追加)
+            {
+              name: 'Qoo10',
+              borderColor: 'border-red-400',
+              btnColor: 'bg-red-400',
+              url: (() => {
+                // Qoo10はパスにもキーワードを含む形式
+                // 例: https://www.qoo10.jp/s/G6030?keyword=G6030...
+                let url = `https://www.qoo10.jp/s/${k}?keyword=${k}`;
+
+                // Qoo10の最低価格 (priceMin)
+                if (min) url += `&priceMin=${min}`;
+
+                // Qoo10の並び順 (SELL_PRICE_ASC / SELL_PRICE_DESC)
+                if (sortOrder.value === 'asc') url += '&sortType=SELL_PRICE_ASC';
+                if (sortOrder.value === 'desc') url += '&sortType=SELL_PRICE_DESC';
+
+                return url;
+              })()
+            },
+            // メルカリ
+            {
+              name: 'メルカリ',
+              borderColor: 'border-red-500',
+              btnColor: 'bg-red-500',
+              url: (() => {
+                let url = `https://jp.mercari.com/search?keyword=${k}`;
+                // メルカリの最低価格
+                if (min) url += `&price_min=${min}`;
+                // メルカリの並び順
+                if (sortOrder.value === 'asc') url += '&sort=price&order=asc';
+                if (sortOrder.value === 'desc') url += '&sort=price&order=desc';
+                // デフォルトで「販売中のみ」をONにする場合: &status=on_sale
+                url += '&status=on_sale';
+                return url;
+              })()
+            }
+          ];
+        });
+
+        return {
+          keyword,
+          targetPrice,
+          enablePriceFilter,
+          sortOrder,
+          computedMinPrice,
+          sortLabel,
+          sites
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>
