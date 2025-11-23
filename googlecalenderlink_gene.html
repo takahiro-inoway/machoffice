@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Googleカレンダーリンク作成ツール</title>
+
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Custom Styles for Preview -->
+  <style>
+    body {
+      background-color: #f5f7fa;
+      min-height: 100vh;
+    }
+
+    .app-container {
+      padding-top: 2rem;
+      padding-bottom: 4rem;
+    }
+
+    /* Google Calendar Preview Styles */
+    .gcal-preview-card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 1px 2px 0 rgba(60, 64, 67, 0.3), 0 2px 6px 2px rgba(60, 64, 67, 0.15);
+      overflow: hidden;
+      font-family: 'Roboto', Arial, sans-serif;
+      max-width: 100%;
+      transition: all 0.3s ease;
+    }
+
+    .gcal-header {
+      background-color: #f1f3f4;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #dadce0;
+    }
+
+    .gcal-close-btn {
+      color: #5f6368;
+      margin-right: 16px;
+    }
+
+    .gcal-body {
+      padding: 20px 24px;
+    }
+
+    .gcal-title {
+      font-size: 22px;
+      font-weight: 400;
+      color: #3c4043;
+      margin-bottom: 16px;
+      line-height: 28px;
+    }
+
+    .gcal-title.is-placeholder {
+      color: #bdc1c6;
+      font-style: italic;
+    }
+
+    .gcal-row {
+      display: flex;
+      margin-bottom: 16px;
+      align-items: flex-start;
+    }
+
+    .gcal-icon {
+      width: 40px;
+      color: #70757a;
+      font-size: 18px;
+      display: flex;
+      justify-content: center;
+      padding-top: 2px;
+      flex-shrink: 0;
+    }
+
+    .gcal-content {
+      color: #3c4043;
+      font-size: 14px;
+      line-height: 20px;
+      word-break: break-word;
+    }
+
+    .gcal-time {
+      font-weight: 500;
+    }
+
+    .gcal-link-box {
+      margin-top: 2rem;
+    }
+
+    .textarea-readonly {
+      background-color: #f5f5f5;
+      border-color: #dbdbdb;
+      color: #7a7a7a;
+      cursor: default;
+    }
+
+    /* Animation for Copy feedback */
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.5s;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app" class="app-container">
+    <div class="container">
+      <h1 class="title has-text-centered mb-6">
+        <span class="icon-text">
+          <span class="icon has-text-primary">
+            <i class="fa-regular fa-calendar-plus"></i>
+          </span>
+          <span>Googleカレンダー リンク作成ツール</span>
+        </span>
+      </h1>
+
+      <div class="columns is-variable is-8-desktop">
+
+        <!-- Left Column: Input Form -->
+        <div class="column is-5-desktop">
+          <div class="box">
+            <h2 class="subtitle is-5 has-text-weight-bold mb-4">イベント詳細設定</h2>
+
+            <!-- Title -->
+            <div class="field">
+              <label class="label">タイトル</label>
+              <div class="control has-icons-left">
+                <input class="input" type="text" v-model="form.title" placeholder="例: 定例ミーティング">
+                <span class="icon is-small is-left">
+                  <i class="fas fa-heading"></i>
+                </span>
+              </div>
+            </div>
+
+            <!-- All Day Checkbox -->
+            <div class="field">
+              <label class="checkbox">
+                <input type="checkbox" v-model="form.isAllDay">
+                終日イベント
+              </label>
+            </div>
+
+            <!-- Date & Time Inputs -->
+            <div class="field is-horizontal">
+              <div class="field-body">
+                <div class="field">
+                  <label class="label">開始日時</label>
+                  <div class="control">
+                    <input class="input" type="date" v-model="form.startDate">
+                  </div>
+                  <div class="control mt-2" v-if="!form.isAllDay">
+                    <input class="input" type="time" v-model="form.startTime">
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="label">終了日時</label>
+                  <div class="control">
+                    <input class="input" type="date" v-model="form.endDate">
+                  </div>
+                  <div class="control mt-2" v-if="!form.isAllDay">
+                    <input class="input" type="time" v-model="form.endTime">
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Helper for Dates -->
+            <p class="help is-info mb-3" v-if="dateWarning">
+              <i class="fas fa-exclamation-circle"></i> {{ dateWarning }}
+            </p>
+
+            <!-- Location -->
+            <div class="field">
+              <label class="label">場所 (オプション)</label>
+              <div class="control has-icons-left">
+                <input class="input" type="text" v-model="form.location" placeholder="例: 東京タワー、Zoom URLなど">
+                <span class="icon is-small is-left">
+                  <i class="fas fa-map-marker-alt"></i>
+                </span>
+              </div>
+            </div>
+
+            <!-- Description -->
+            <div class="field">
+              <label class="label">説明 (オプション)</label>
+              <div class="control">
+                <textarea class="textarea" v-model="form.description" placeholder="イベントの詳細を入力してください"></textarea>
+              </div>
+              <p class="help">改行は自動的に反映されます。</p>
+            </div>
+
+            <div class="field mt-5">
+              <button class="button is-info is-light is-fullwidth" @click="resetForm">
+                <span class="icon"><i class="fas fa-rotate-right"></i></span>
+                <span>リセット</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: Preview & Output -->
+        <div class="column is-7-desktop">
+
+          <!-- Visual Preview -->
+          <h2 class="subtitle is-5 has-text-weight-bold">プレビュー (Googleカレンダー風)</h2>
+          <div class="gcal-preview-card mb-6">
+            <div class="gcal-header">
+              <div class="gcal-close-btn"><i class="fas fa-times"></i></div>
+              <div style="flex-grow: 1;"></div>
+              <div class="gcal-close-btn"><i class="fas fa-ellipsis-vertical"></i></div>
+            </div>
+            <div class="gcal-body">
+              <!-- Title Preview -->
+              <div class="gcal-title" :class="{ 'is-placeholder': !form.title }">
+                {{ form.title || '(タイトルなし)' }}
+              </div>
+
+              <!-- Date/Time Preview -->
+              <div class="gcal-row">
+                <div class="gcal-icon"><i class="far fa-clock"></i></div>
+                <div class="gcal-content gcal-time">
+                  {{ previewDateTime }}
+                </div>
+              </div>
+
+              <!-- Location Preview -->
+              <div class="gcal-row" v-if="form.location">
+                <div class="gcal-icon"><i class="fas fa-map-marker-alt"></i></div>
+                <div class="gcal-content">
+                  {{ form.location }}
+                </div>
+              </div>
+
+              <!-- Description Preview -->
+              <div class="gcal-row" v-if="form.description">
+                <div class="gcal-icon"><i class="fas fa-align-left"></i></div>
+                <div class="gcal-content" style="white-space: pre-wrap;">{{ form.description }}</div>
+              </div>
+
+              <!-- My Calendar Info (Mock) -->
+              <div class="gcal-row">
+                <div class="gcal-icon"><i class="far fa-calendar"></i></div>
+                <div class="gcal-content">
+                  <span class="has-text-grey">ユーザーのカレンダー名</span><br>
+                  <span class="is-size-7 has-text-grey">通知: 10分前</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generated Link Section -->
+          <div class="gcal-link-box">
+            <h2 class="subtitle is-5 has-text-weight-bold">
+              生成されたリンク
+            </h2>
+
+            <div class="field has-addons">
+              <div class="control is-expanded">
+                <input class="input is-medium" type="text" :value="generatedUrl" readonly ref="linkInput"
+                  @click="selectAll">
+              </div>
+              <div class="control">
+                <button class="button is-primary is-medium" @click="copyToClipboard"
+                  :class="{'is-success': copySuccess}">
+                  <span class="icon">
+                    <i class="fas" :class="copySuccess ? 'fa-check' : 'fa-copy'"></i>
+                  </span>
+                  <span>{{ copySuccess ? 'コピー完了!' : 'コピー' }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="buttons mt-4">
+              <a :href="generatedUrl" target="_blank" class="button is-link is-outlined">
+                <span class="icon"><i class="fas fa-external-link-alt"></i></span>
+                <span>リンクをテストする</span>
+              </a>
+            </div>
+
+            <article class="message is-small is-info mt-4">
+              <div class="message-body">
+                このURLをメール、Slack、ウェブサイトなどに貼り付けて使用してください。ユーザーがクリックすると、このイベント追加画面が直接開きます。
+              </div>
+            </article>
+          </div>
+
+          <!-- QR Code Section -->
+          <div class="gcal-link-box mt-5">
+            <h2 class="subtitle is-5 has-text-weight-bold">
+              QRコード
+            </h2>
+            <div class="box has-text-centered">
+              <figure class="image is-128x128 is-inline-block">
+                <img :src="qrCodeUrl" alt="QR Code">
+              </figure>
+              <p class="mt-3 is-size-7 has-text-grey">
+                スマートフォンのカメラで読み取ると、カレンダー登録画面が開きます。
+              </p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+
+  <script>
+    const { createApp, ref, computed, watch, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        // --- State ---
+        const copySuccess = ref(false);
+
+        // 初期日付の設定（今日と1時間後）
+        const now = new Date();
+        // 時間をきれいにする (分を00にするなど)
+        now.setMinutes(0);
+        now.setSeconds(0);
+
+        const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
+        // 日付文字列 YYYY-MM-DD 生成ヘルパー
+        const toDateStr = (d) => d.toISOString().split('T')[0];
+        // 時刻文字列 HH:MM 生成ヘルパー
+        const toTimeStr = (d) => d.toTimeString().split(' ')[0].substring(0, 5);
+
+        const form = ref({
+          title: '',
+          isAllDay: false,
+          startDate: toDateStr(now),
+          startTime: toTimeStr(now),
+          endDate: toDateStr(now),
+          endTime: toTimeStr(oneHourLater),
+          location: '',
+          description: ''
+        });
+
+        // --- Helpers ---
+
+        // 自動的に終了日時を開始日時より後に設定するロジック
+        watch(() => [form.value.startDate, form.value.startTime], ([newDate, newTime]) => {
+          // 簡易的な同期処理: 開始日が終了日より後なら終了日を合わせる
+          if (form.value.endDate < newDate) {
+            form.value.endDate = newDate;
+          }
+          // 同じ日で時間が逆転している場合の処理などはユーザーの自由に任せるが、
+          // ここでは警告を出すための計算用データを用意する
+        });
+
+        // 日付の整合性チェック
+        const dateWarning = computed(() => {
+          if (!form.value.startDate || !form.value.endDate) return null;
+
+          const startStr = `${form.value.startDate}T${form.value.startTime}`;
+          const endStr = `${form.value.endDate}T${form.value.endTime}`;
+
+          if (!form.value.isAllDay && startStr > endStr) {
+            return "終了日時が開始日時より前になっています。Googleカレンダー側でエラーになる可能性があります。";
+          }
+          if (form.value.isAllDay && form.value.startDate > form.value.endDate) {
+            return "終了日が開始日より前になっています。";
+          }
+          return null;
+        });
+
+        // --- URL Generation Logic ---
+
+        const formatForUrl = (dateStr, timeStr, isAllDay, isEnd = false) => {
+          // ハイフンを除去
+          const d = dateStr.replace(/-/g, '');
+
+          if (isAllDay) {
+            // 終日の場合、終了日は翌日に設定するのが通例だが、
+            // 単純なツールとしてユーザー入力をそのままYYYYMMDDで渡す。
+            // Google Calendar API的には終日は YYYYMMDD/YYYYMMDD+1日 が望ましいが、
+            // URL生成ツールとしては入力値を尊重する。
+            // ただし、Googleの仕様上、終日終了日は「含まれない」ため、同じ日だとイベントが作成されない場合がある。
+            // ここでは簡易的にユーザーが入力した「終了日」の翌日を計算して渡すロジックを入れる。
+
+            if (isEnd) {
+              const dateObj = new Date(dateStr);
+              dateObj.setDate(dateObj.getDate() + 1);
+              const nextDay = dateObj.toISOString().split('T')[0].replace(/-/g, '');
+              return nextDay;
+            }
+            return d;
+          } else {
+            // 時間がある場合: YYYYMMDDTHHMMSS
+            const t = timeStr.replace(/:/g, '') + '00';
+            return `${d}T${t}`;
+          }
+        };
+
+        const generatedUrl = computed(() => {
+          const baseUrl = "https://www.google.com/calendar/render?action=TEMPLATE";
+
+          const titleEnc = encodeURIComponent(form.value.title);
+          const descEnc = encodeURIComponent(form.value.description);
+          const locEnc = encodeURIComponent(form.value.location);
+
+          // 日時の整形
+          const start = formatForUrl(form.value.startDate, form.value.startTime, form.value.isAllDay, false);
+          const end = formatForUrl(form.value.endDate, form.value.endTime, form.value.isAllDay, true);
+
+          const datesParam = `&dates=${start}/${end}`;
+
+          let url = `${baseUrl}&text=${titleEnc}${datesParam}`;
+
+          if (form.value.description) url += `&details=${descEnc}`;
+          if (form.value.location) url += `&location=${locEnc}`;
+
+          // タイムゾーンパラメータ（ctz）はあえて省略し、ユーザーの現在地カレンダー設定に委ねる
+          // 必要であれば &ctz=Asia/Tokyo などを追加するが、Webツールとしては汎用性を重視
+
+          return url;
+        });
+
+        // QR Code URL (using goqr.me/api.qrserver.com API)
+        const qrCodeUrl = computed(() => {
+          const encodedUrl = encodeURIComponent(generatedUrl.value);
+          // 150x150サイズでQRコードを生成
+          return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodedUrl}`;
+        });
+
+        // --- Preview Display Logic ---
+
+        const formatPreviewDate = (dateStr) => {
+          if (!dateStr) return '';
+          const d = new Date(dateStr);
+          // 日本語ロケールでフォーマット
+          const options = { month: 'long', day: 'numeric', weekday: 'short' };
+          return d.toLocaleDateString('ja-JP', options);
+        };
+
+        const previewDateTime = computed(() => {
+          const startD = formatPreviewDate(form.value.startDate);
+          const endD = formatPreviewDate(form.value.endDate);
+
+          if (form.value.isAllDay) {
+            if (form.value.startDate === form.value.endDate) {
+              return `${startD}`; // 同じ日なら1日だけ表示
+            }
+            return `${startD} – ${endD}`;
+          } else {
+            const startT = form.value.startTime;
+            const endT = form.value.endTime;
+
+            if (form.value.startDate === form.value.endDate) {
+              // 同じ日: 11月24日(金) 10:00 – 11:00
+              return `${startD} ${startT} – ${endT}`;
+            } else {
+              // 違う日: 11月24日(金) 10:00 – 11月25日(土) 10:00
+              return `${startD} ${startT} – ${endD} ${endT}`;
+            }
+          }
+        });
+
+        // --- Actions ---
+
+        const copyToClipboard = () => {
+          navigator.clipboard.writeText(generatedUrl.value).then(() => {
+            copySuccess.value = true;
+            setTimeout(() => {
+              copySuccess.value = false;
+            }, 2000);
+          });
+        };
+
+        const selectAll = (event) => {
+          event.target.select();
+        };
+
+        const resetForm = () => {
+          form.value.title = '';
+          form.value.location = '';
+          form.value.description = '';
+          form.value.isAllDay = false;
+          // 時間は現在時刻にリセット
+          const n = new Date();
+          n.setMinutes(0); n.setSeconds(0);
+          const n2 = new Date(n.getTime() + 3600000);
+          form.value.startDate = toDateStr(n);
+          form.value.startTime = toTimeStr(n);
+          form.value.endDate = toDateStr(n);
+          form.value.endTime = toTimeStr(n2);
+        };
+
+        return {
+          form,
+          generatedUrl,
+          qrCodeUrl,
+          previewDateTime,
+          copyToClipboard,
+          copySuccess,
+          dateWarning,
+          resetForm,
+          selectAll
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+
+</html>
