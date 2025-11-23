@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ブラウザ完結 画像コンバータ</title>
+
+  <!-- CSS Framework: Bulma -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- Icons: FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <style>
+    [v-cloak] {
+      display: none;
+    }
+
+    body {
+      background-color: #f5f7fa;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .main-content {
+      flex: 1;
+    }
+
+    /* Drag and Drop Zone */
+    .drop-zone {
+      border: 3px dashed #dbdbdb;
+      border-radius: 10px;
+      padding: 3rem;
+      text-align: center;
+      transition: all 0.3s ease;
+      background-color: white;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .drop-zone:hover,
+    .drop-zone.is-dragover {
+      border-color: #00d1b2;
+      background-color: #f0fdfa;
+    }
+
+    .drop-zone input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .preview-image {
+      object-fit: contain;
+      height: 150px;
+      width: 100%;
+      background-color: #eee;
+    }
+
+    .card-content {
+      padding: 1rem;
+    }
+
+    .sticky-controls {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(5px);
+      padding: 1rem 0;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(255, 255, 255, 0.8);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app" v-cloak>
+    <!-- Header -->
+    <section class="hero is-primary is-small">
+      <div class="hero-body">
+        <div class="container">
+          <p class="title">
+            <i class="fas fa-images mr-2"></i>画像コンバータ
+          </p>
+          <p class="subtitle">
+            ブラウザ上で安全に変換・一括ダウンロード
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Content -->
+    <section class="section main-content">
+      <div class="container">
+
+        <!-- Step 1: Upload Area (Visible only if no files are loaded) -->
+        <div v-if="files.length === 0" class="drop-zone mb-6" :class="{ 'is-dragover': isDragOver }"
+          @dragover.prevent="isDragOver = true" @dragleave.prevent="isDragOver = false" @drop.prevent="handleDrop">
+
+          <input type="file" multiple accept="image/*" @change="handleFileSelect">
+          <div class="content">
+            <p class="is-size-2 has-text-grey-light">
+              <i class="fas fa-cloud-upload-alt"></i>
+            </p>
+            <p class="is-size-4 has-text-grey">画像をドラッグ＆ドロップ</p>
+            <p class="is-size-6 has-text-grey-light">またはクリックしてファイルを選択</p>
+          </div>
+        </div>
+
+        <!-- Controls & Results (Visible if files exist) -->
+        <div v-else>
+
+          <!-- Sticky Settings Bar -->
+          <div class="sticky-controls">
+            <div class="container px-4">
+              <div class="columns is-vcentered is-multiline">
+                <!-- Format Selection -->
+                <div class="column is-narrow">
+                  <label class="label is-small">出力形式</label>
+                  <div class="select">
+                    <select v-model="targetFormat" @change="convertAll">
+                      <option value="image/jpeg">JPEG</option>
+                      <option value="image/png">PNG</option>
+                      <option value="image/webp">WEBP</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Quality Slider (Hidden for PNG) -->
+                <div class="column is-narrow" v-if="targetFormat !== 'image/png'">
+                  <label class="label is-small">画質: {{ Math.round(quality * 100) }}%</label>
+                  <input type="range" min="0.1" max="1.0" step="0.1" v-model.number="quality" @change="convertAll">
+                </div>
+
+                <!-- Shortcuts -->
+                <div class="column">
+                  <label class="label is-small">ショートカット</label>
+                  <div class="buttons are-small">
+                    <button class="button is-info is-light" @click="applyShortcut('webp', 0.8)">
+                      <i class="fas fa-bolt mr-1"></i>Web用 (WEBP)
+                    </button>
+                    <button class="button is-warning is-light" @click="applyShortcut('jpeg', 0.9)">
+                      <i class="fas fa-camera mr-1"></i>写真用 (JPG高画質)
+                    </button>
+                    <button class="button is-success is-light" @click="applyShortcut('png', 1.0)">
+                      <i class="fas fa-layer-group mr-1"></i>透過・高質 (PNG)
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Global Actions -->
+                <div class="column is-narrow has-text-right-tablet">
+                  <div class="buttons">
+                    <button class="button is-danger is-outlined" @click="resetAll">
+                      <i class="fas fa-trash-alt mr-2"></i>リセット
+                    </button>
+                    <button class="button is-primary" @click="downloadAllZip"
+                      :disabled="isProcessing || files.length === 0">
+                      <i class="fas fa-file-archive mr-2"></i>一括DL (ZIP)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Add more files drop area (small) -->
+          <div class="notification is-light mb-5 has-text-centered"
+            style="border: 2px dashed #ccc; cursor: pointer; position: relative;" @dragover.prevent
+            @drop.prevent="handleDrop">
+            <input type="file" multiple accept="image/*" @change="handleFileSelect"
+              style="position:absolute; top:0; left:0; width:100%; height:100%; opacity:0; cursor:pointer;">
+            <i class="fas fa-plus mr-2"></i>画像を追加する
+          </div>
+
+          <!-- Results Grid -->
+          <div class="columns is-multiline">
+            <div class="column is-6-mobile is-4-tablet is-3-desktop" v-for="(file, index) in processedFiles"
+              :key="index">
+              <div class="card h-100">
+                <div class="card-image position-relative">
+                  <figure class="image">
+                    <img :src="file.dataUrl" class="preview-image" alt="Preview">
+                  </figure>
+                  <div v-if="file.loading" class="loading-overlay">
+                    <i class="fas fa-spinner fa-spin fa-2x has-text-grey"></i>
+                  </div>
+                </div>
+                <div class="card-content">
+                  <p class="title is-6 text-truncate" :title="file.originalName">{{ truncate(file.originalName) }}</p>
+                  <div class="tags are-small mb-2">
+                    <span class="tag is-light">{{ file.originalSize }}</span>
+                    <span class="tag is-arrow-right"><i class="fas fa-arrow-right"></i></span>
+                    <span class="tag" :class="getSizeColor(file.originalBytes, file.convertedBytes)">{{
+                      file.convertedSize }}</span>
+                  </div>
+                  <button class="button is-small is-fullwidth is-link is-outlined" @click="downloadSingle(file)">
+                    <i class="fas fa-download mr-1"></i> DL
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <footer class="footer py-4 mt-auto">
+      <div class="content has-text-centered">
+        <p>
+          <strong>Image Converter</strong> by Gemini. 画像はサーバーにアップロードされません。
+        </p>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Libraries -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <script>
+    const { createApp, ref, computed, reactive, watch } = Vue;
+
+    createApp({
+      setup() {
+        // State
+        const files = ref([]);
+        const processedFiles = ref([]);
+        const isDragOver = ref(false);
+        const isProcessing = ref(false);
+
+        // Settings
+        const targetFormat = ref('image/jpeg'); // image/jpeg, image/png, image/webp
+        const quality = ref(0.8);
+
+        // Helpers: Format file size
+        const formatSize = (bytes) => {
+          if (bytes === 0) return '0 B';
+          const k = 1024;
+          const sizes = ['B', 'KB', 'MB', 'GB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        };
+
+        const truncate = (str, n = 20) => {
+          return (str.length > n) ? str.substr(0, n - 1) + '...' : str;
+        };
+
+        // Helper: Get extension from mime type
+        const getExt = (mimeType) => {
+          switch (mimeType) {
+            case 'image/jpeg': return '.jpg';
+            case 'image/png': return '.png';
+            case 'image/webp': return '.webp';
+            default: return '.jpg';
+          }
+        };
+
+        // Helper: Size comparison color
+        const getSizeColor = (original, converted) => {
+          if (!converted) return 'is-light';
+          return converted < original ? 'is-success' : 'is-warning';
+        };
+
+        // Core: Convert a single file
+        const processFile = async (fileWrapper) => {
+          fileWrapper.loading = true;
+
+          try {
+            const img = new Image();
+            const reader = new FileReader();
+
+            // Read file
+            await new Promise((resolve) => {
+              reader.onload = (e) => {
+                img.src = e.target.result;
+                resolve();
+              };
+              reader.readAsDataURL(fileWrapper.rawFile);
+            });
+
+            // Wait for image load
+            await new Promise((resolve) => {
+              img.onload = resolve;
+            });
+
+            // Draw to canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+
+            // Fill white background for JPEGs (handling transparency)
+            if (targetFormat.value === 'image/jpeg') {
+              ctx.fillStyle = '#FFFFFF';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            ctx.drawImage(img, 0, 0);
+
+            // Export
+            const dataUrl = canvas.toDataURL(targetFormat.value, quality.value);
+
+            // Calculate size approximation
+            const head = 'data:' + targetFormat.value + ';base64,';
+            const size = Math.round((dataUrl.length - head.length) * 3 / 4);
+
+            // Update wrapper
+            fileWrapper.dataUrl = dataUrl;
+            fileWrapper.convertedBytes = size;
+            fileWrapper.convertedSize = formatSize(size);
+            fileWrapper.ext = getExt(targetFormat.value);
+
+          } catch (e) {
+            console.error("Conversion failed", e);
+          } finally {
+            fileWrapper.loading = false;
+          }
+        };
+
+        // Action: Add files
+        const addFiles = (newFiles) => {
+          const wrappers = Array.from(newFiles)
+            .filter(f => f.type.startsWith('image/'))
+            .map(f => ({
+              rawFile: f,
+              originalName: f.name,
+              originalBytes: f.size,
+              originalSize: formatSize(f.size),
+              dataUrl: null,
+              convertedSize: '...',
+              convertedBytes: 0,
+              loading: true,
+              ext: ''
+            }));
+
+          files.value = [...files.value, ...wrappers];
+          processedFiles.value = [...files.value];
+
+          // Process only the new ones
+          wrappers.forEach(w => processFile(w));
+        };
+
+        // Event Handlers
+        const handleDrop = (e) => {
+          isDragOver.value = false;
+          addFiles(e.dataTransfer.files);
+        };
+
+        const handleFileSelect = (e) => {
+          addFiles(e.target.files);
+          // Reset input
+          e.target.value = '';
+        };
+
+        // Re-convert all when settings change
+        const convertAll = () => {
+          isProcessing.value = true;
+          // Debounce slighty or just run
+          processedFiles.value.forEach(f => processFile(f));
+          setTimeout(() => isProcessing.value = false, 500);
+        };
+
+        // Shortcut Buttons
+        const applyShortcut = (type, qVal) => {
+          targetFormat.value = `image/${type}`;
+          quality.value = qVal;
+          convertAll();
+        };
+
+        // Download Single
+        const downloadSingle = (file) => {
+          const link = document.createElement('a');
+          link.href = file.dataUrl;
+          const baseName = file.originalName.substring(0, file.originalName.lastIndexOf('.')) || file.originalName;
+          link.download = `${baseName}_converted${file.ext}`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        };
+
+        // Download All (ZIP)
+        const downloadAllZip = async () => {
+          if (processedFiles.value.length === 0) return;
+          isProcessing.value = true;
+
+          try {
+            const zip = new JSZip();
+            const imgFolder = zip.folder("converted_images");
+
+            processedFiles.value.forEach((file, index) => {
+              const base64Data = file.dataUrl.split(',')[1];
+              const baseName = file.originalName.substring(0, file.originalName.lastIndexOf('.')) || file.originalName;
+              // Avoid duplicate names
+              const fileName = `${baseName}${file.ext}`;
+
+              // Check if file exists in zip, append index if so (simple duplicate handler)
+              if (imgFolder.file(fileName)) {
+                imgFolder.file(`${baseName}_${index}${file.ext}`, base64Data, { base64: true });
+              } else {
+                imgFolder.file(fileName, base64Data, { base64: true });
+              }
+            });
+
+            const content = await zip.generateAsync({ type: "blob" });
+            const url = URL.createObjectURL(content);
+
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = "images_converted.zip";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+          } catch (e) {
+            alert("ZIP作成中にエラーが発生しました。");
+            console.error(e);
+          } finally {
+            isProcessing.value = false;
+          }
+        };
+
+        const resetAll = () => {
+          if (confirm('全ての画像を削除してリセットしますか？')) {
+            files.value = [];
+            processedFiles.value = [];
+          }
+        };
+
+        return {
+          files,
+          processedFiles,
+          isDragOver,
+          isProcessing,
+          targetFormat,
+          quality,
+          handleDrop,
+          handleFileSelect,
+          convertAll,
+          applyShortcut,
+          downloadSingle,
+          downloadAllZip,
+          resetAll,
+          truncate,
+          getSizeColor
+        };
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+
+</html>
