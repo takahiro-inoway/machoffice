@@ -103,9 +103,9 @@
       </div>
     </div>
 
-    <!-- Results Section -->
-    <div v-if="keyword" class="grid grid-cols-1 gap-4">
-      <h2 class="text-xl font-bold text-gray-800 mb-2 flex items-center">
+    <!-- Results Section (v-if="keyword" を削除し、常に表示) -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <h2 class="text-xl font-bold text-gray-800 mb-2 md:col-span-2 flex items-center">
         <span class="mr-2">🔍</span> 生成されたリンク
       </h2>
 
@@ -114,11 +114,13 @@
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div class="flex-1 w-full">
             <div class="flex items-center justify-between mb-1">
+              <!-- サイト名に説明文を追加 -->
               <h3 class="font-bold text-lg text-gray-800">{{ site.name }}</h3>
               <span class="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600 border">
                 {{ sortLabel }}
               </span>
             </div>
+            <!-- キーワードが空の場合は、URLも空の検索結果（サイトトップや全商品）になります -->
             <div class="bg-gray-50 p-2 rounded text-xs text-gray-500 font-mono break-all mb-3 border">
               {{ site.url }}
             </div>
@@ -134,12 +136,7 @@
       </div>
     </div>
 
-    <!-- Empty State -->
-    <div v-else class="text-center py-12 bg-white rounded-xl shadow-sm border border-dashed border-gray-300">
-      <div class="text-4xl mb-4">👆</div>
-      <h3 class="text-lg font-bold text-gray-500">キーワードを入力してください</h3>
-      <p class="text-gray-400 text-sm mt-2">入力すると自動的に各サイトのURLが生成されます</p>
-    </div>
+    <!-- Empty State を削除 -->
 
   </div>
 
@@ -170,6 +167,7 @@
 
         // Computed: サイトごとのURL生成ロジック
         const sites = computed(() => {
+          // キーワードが空でもエンコードして使用（空文字列を想定）
           const k = encodeURIComponent(keyword.value.trim());
           const min = enablePriceFilter.value ? computedMinPrice.value : '';
 
@@ -247,7 +245,7 @@
                 return url;
               })()
             },
-            // Qoo10 (新規追加)
+            // Qoo10
             {
               name: 'Qoo10',
               borderColor: 'border-red-400',
@@ -282,6 +280,165 @@
                 // デフォルトで「販売中のみ」をONにする場合: &status=on_sale
                 url += '&status=on_sale';
                 return url;
+              })()
+            },
+            // モノタロウ
+            {
+              name: 'モノタロウ',
+              borderColor: 'border-orange-500',
+              btnColor: 'bg-orange-500',
+              url: (() => {
+                let url = `https://www.monotaro.com/s/q-${k}/`;
+
+                // 並び順 (sort=price: 安い順)
+                if (sortOrder.value === 'asc') url += '?sort=price';
+                // モノタロウは高い順のパラメータが無いため、安い順のみ対応
+
+                // 最低価格 (pf)
+                // フィルターONかつminが存在する場合のみ適用
+                if (min) {
+                    // 並び順パラメータが既にあるかチェック
+                    url += (url.includes('?') ? '&' : '?') + `pf=${min}`;
+                }
+
+                return url;
+              })()
+            },
+
+            // アスクル
+            {
+              name: 'アスクル',
+              borderColor: 'border-red-700',
+              btnColor: 'bg-red-700',
+              url: (() => {
+                let url = `https://www.askul.co.jp/ksearch/?searchWord=${k}`;
+
+                // 最低価格 (minPriceRange + priceRangeInputFlg=1)
+                if (min) {
+                  url += `&minPriceRange=${min}&priceRangeInputFlg=1`;
+                }
+
+                // 並び順 (sortDir=1: 安い順, sortDir=2: 高い順)
+                if (sortOrder.value === 'asc') url += '&sortDir=1';
+                else if (sortOrder.value === 'desc') url += '&sortDir=2';
+
+                return url;
+              })()
+            },
+
+            // オフィスコム
+            {
+              name: 'オフィスコム',
+              borderColor: 'border-blue-700',
+              btnColor: 'bg-blue-700',
+              url: (() => {
+                let url = `https://www.office-com.jp/products/search.php?name=${k}`;
+
+                // 最低価格 (mmin)
+                if (min) url += `&mmin=${min}`;
+
+                // 並び順 (orderby=low: 安い順, orderby=high: 高い順)
+                if (sortOrder.value === 'asc') url += '&orderby=low';
+                else if (sortOrder.value === 'desc') url += '&orderby=high';
+
+                return url;
+              })()
+            },
+
+            // カグクロ（家具）
+            {
+              name: 'カグクロ',
+              borderColor: 'border-green-600',
+              btnColor: 'bg-green-600',
+              url: (() => {
+                let url = `https://www.kagukuro.com/search/?q=${k}`;
+
+                // パラメータ配列を作成して結合
+                let params = [];
+
+                // 並び順 (sort=price_asc: 安い順, sort=price_desc: 高い順)
+                if (sortOrder.value === 'asc') params.push('sort=price_asc');
+                else if (sortOrder.value === 'desc') params.push('sort=price_desc');
+
+                // 最低価格 (p_min)
+                if (min) params.push(`p_min=${min}`);
+
+                // 検索キーワードは既にあるため、追加のパラメータのみ結合
+                if (params.length > 0) {
+                  // q=kが既にあるので、&で開始
+                  url += '&' + params.join('&');
+                }
+
+                return url;
+              })()
+            },
+            
+            // カウネット
+            {
+              name: 'カウネット | コクヨの通販カウネット オフィス用品・日用雑貨など豊富な品揃え',
+              borderColor: 'border-red-600',
+              btnColor: 'bg-red-600',
+              url: (() => {
+                // ShowList=1 は必須、Keywordにキーワード、PriceFromに最低価格、SortOrderで並び順
+                let url = `https://www.kaunet.com/rakuraku/spook3/main?ShowList=1&Keyword=${k}`;
+
+                // 最低価格 (PriceFrom)
+                if (min) url += `&PriceFrom=${min}`;
+
+                // 並び順 (SortOrder=Ascending:安い順, SortOrder=Descending:高い順)
+                if (sortOrder.value === 'asc') url += '&SortOrder=Ascending';
+                else if (sortOrder.value === 'desc') url += '&SortOrder=Descending';
+                // 標準の場合は SortOrder パラメータを省略
+
+                return url;
+              })()
+            },
+
+            // たのめーる
+            {
+              name: 'たのめーる（並び順、金額指定不可）',
+              borderColor: 'border-teal-500',
+              btnColor: 'bg-teal-500',
+              url: (() => {
+                // たのめーるは並び順・金額指定不可のため、キーワードのみを適用
+                // URL例: https://www.tanomail.com/search/res/mouse/
+                return `https://www.tanomail.com/search/res/${k}/`;
+              })()
+            },
+
+            // ハンズ
+            {
+              name: 'HANDS | ハンズ',
+              borderColor: 'border-green-500',
+              btnColor: 'bg-green-500',
+              url: (() => {
+                let url = `https://hands.net/search/?q=${k}`;
+
+                // 最低価格 (price_min)
+                if (min) url += `&price_min=${min}`;
+
+                // 並び順 (rankBy=price(float)/jpy:ascending:安い順)
+                if (sortOrder.value === 'asc') {
+                  // 安い順の複雑なランクパラメータ
+                  url += '&rankBy=price%28float%29%2Fjpy%3Aascending';
+                } else if (sortOrder.value === 'desc') {
+                  // 高い順は descending に変更
+                  url += '&rankBy=price%28float%29%2Fjpy%3Adescending';
+                }
+
+                return url;
+              })()
+            },
+
+            // eqix イークイックス
+            {
+              name: 'eqix イークイックス | 富士フイルムビジネスイノベーションジャパンのオフィス通販サイト',
+              borderColor: 'border-gray-800',
+              btnColor: 'bg-gray-800',
+              url: (() => {
+                // イークイックスは並び順・金額指定不可のため、キーワードのみを適用
+                // URL例: https://www.e-qix.jp/search.do?swd=paper
+                return `https://www.e-qix.jp/search.do?swd=${k}`;
               })()
             }
           ];
