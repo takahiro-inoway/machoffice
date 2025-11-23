@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>画像素材一括検索ツール</title>
+  <!-- Bulma CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <!-- Font Awesome (アイコン用) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <style>
+    body {
+      background-color: #f5f7fa;
+      min-height: 100vh;
+      padding-bottom: 3rem;
+      font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif;
+    }
+
+    /* 注意書きエリア */
+    .top-notice {
+      background-color: #fff3cd;
+      color: #856404;
+      font-size: 0.75rem;
+      padding: 0.5rem 1rem;
+      text-align: center;
+      border-bottom: 1px solid #ffeeba;
+    }
+
+    .search-sticky {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 1rem 0;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+      border-bottom: 1px solid #eee;
+    }
+
+    .site-card {
+      height: 100%;
+      border-radius: 6px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      transition: all 0.2s;
+      border: 1px solid #eaeaea;
+    }
+
+    .site-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      border-color: #3273dc;
+    }
+
+    .card-content {
+      padding: 1rem;
+      /* パディングを縮小 */
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .site-title {
+      font-size: 1rem;
+      font-weight: bold;
+      margin-bottom: 0.2rem;
+      color: #363636;
+    }
+
+    .site-domain {
+      font-size: 0.7rem;
+      color: #999;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+
+    .site-desc {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 0.8rem;
+      flex-grow: 1;
+      line-height: 1.4;
+    }
+
+    .category-header {
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+      border-bottom: 1px solid #dbdbdb;
+      padding-bottom: 0.3rem;
+      font-size: 1.1rem;
+    }
+
+    /* URLリンクのスタイル */
+    .generated-link {
+      display: block;
+      font-family: monospace;
+      font-size: 0.75rem;
+      background-color: #f0f4f8;
+      padding: 0.4rem 0.6rem;
+      border-radius: 4px;
+      color: #3273dc;
+      text-decoration: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      border: 1px solid #dcebfb;
+      transition: background-color 0.2s;
+    }
+
+    .generated-link:hover {
+      background-color: #e6f0ff;
+      text-decoration: underline;
+    }
+
+    .generated-link.is-placeholder {
+      color: #aaa;
+      background-color: #f5f5f5;
+      border-color: #eee;
+      pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app">
+    <!-- 最上部 注意書き -->
+    <div class="top-notice">
+      <i class="fas fa-exclamation-circle mr-1"></i>
+      <strong>ご注意：</strong>商用利用の可否、著作権、ライセンス条件については、必ず各素材サイトの利用規約を直接ご確認ください。
+    </div>
+
+    <!-- ヘッダー＆検索エリア -->
+    <section class="search-sticky">
+      <div class="container px-4">
+        <div class="columns is-centered is-vcentered is-mobile is-multiline">
+          <div class="column is-narrow">
+            <h1 class="title is-6 mb-0">
+              <i class="fa-regular fa-images mr-1"></i>画像検索ツール
+            </h1>
+          </div>
+          <div class="column is-12-mobile" style="max-width: 500px;">
+            <div class="field">
+              <div class="control has-icons-left">
+                <input class="input is-small is-rounded is-primary" type="text" placeholder="キーワードを入力（例：海、ビジネス）"
+                  v-model="keyword" autofocus>
+                <span class="icon is-small is-left">
+                  <i class="fas fa-search"></i>
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- メインコンテンツ -->
+    <section class="section pt-2">
+      <div class="container">
+
+        <div v-for="(category, catIndex) in siteData" :key="catIndex">
+          <h2 class="title is-6 category-header has-text-grey-dark">
+            <span class="icon-text">
+              <span class="icon has-text-info is-small mr-1"><i :class="category.icon"></i></span>
+              <span>{{ category.title }}</span>
+            </span>
+          </h2>
+
+          <!-- グリッド間隔を狭く設定 -->
+          <div class="columns is-multiline is-variable is-2">
+            <div class="column is-12-mobile is-6-tablet is-4-desktop is-3-widescreen" v-for="site in category.sites"
+              :key="site.name">
+              <div class="card site-card">
+                <div class="card-content">
+                  <!-- タイトルとドメイン -->
+                  <div class="mb-2">
+                    <div class="is-flex is-justify-content-space-between is-align-items-start">
+                      <a :href="site.baseUrl" target="_blank" class="site-title hover-underline">
+                        {{ site.name }} <i class="fas fa-external-link-alt is-size-7 ml-1 has-text-grey-light"></i>
+                      </a>
+                    </div>
+                    <span class="site-domain">{{ extractDomain(site.baseUrl) }}</span>
+                  </div>
+
+                  <!-- 説明文 -->
+                  <div class="site-desc">
+                    {{ site.desc }}
+                  </div>
+
+                  <!-- URLリンク表示エリア -->
+                  <div>
+                    <p class="is-size-7 mb-1 has-text-grey-light" style="font-size: 0.65rem;">
+                      <span v-if="keyword">検索リンク:</span>
+                      <span v-else>検索用URL:</span>
+                    </p>
+                    <a :href="generateUrl(site.queryUrl)" target="_blank" class="generated-link"
+                      :class="{ 'is-placeholder': !keyword && !site.noSearch }"
+                      :title="keyword ? generateUrl(site.queryUrl) : 'キーワードを入力してください'">
+                      <span v-if="site.noSearch" class="has-text-grey">
+                        <i class="fas fa-ban mr-1"></i>検索機能なし (トップへ)
+                      </span>
+                      <span v-else-if="keyword">
+                        <i class="fas fa-link mr-1"></i>{{ generateUrl(site.queryUrl) }}
+                      </span>
+                      <span v-else>
+                        <i class="fas fa-arrow-up mr-1"></i>キーワードを入力...
+                      </span>
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const { createApp, ref } = Vue;
+
+    createApp({
+      setup() {
+        const keyword = ref('');
+
+        // データ定義
+        const siteData = [
+          {
+            title: "海外・高画質・定番",
+            desc: "クオリティが非常に高く、アーティスティックな写真が豊富です。",
+            icon: "fas fa-globe-americas",
+            sites: [
+              { name: "Unsplash", desc: "世界最高峰のクオリティ。芸術的。", baseUrl: "https://unsplash.com/", queryUrl: "https://unsplash.com/s/photos/dummy" },
+              { name: "Pixabay", desc: "写真・ベクター・動画。日本語対応。", baseUrl: "https://pixabay.com/ja/", queryUrl: "https://pixabay.com/ja/images/search/dummy/" },
+              { name: "Pexels", desc: "モダンな写真が多い。日本語対応。", baseUrl: "https://www.pexels.com/ja-jp/", queryUrl: "https://www.pexels.com/ja-jp/search/dummy/" },
+              { name: "Burst", desc: "Shopify運営。ビジネス向け高品質。", baseUrl: "https://burst.shopify.com/", queryUrl: "https://burst.shopify.com/photos/search?q=dummy" },
+              { name: "Gratisography", desc: "ユニーク、シュール、個性的。", baseUrl: "https://gratisography.com/", queryUrl: "https://gratisography.com/?s=dummy" },
+              { name: "Kaboompics", desc: "色検索可能。インテリア・生活。", baseUrl: "https://kaboompics.com/", queryUrl: "https://kaboompics.com/gallery?search=dummy" },
+              { name: "Foodiesfeed", desc: "「食」特化。料理や食材の写真。", baseUrl: "https://www.foodiesfeed.com/", queryUrl: "https://www.foodiesfeed.com/?s=dummy" }
+            ]
+          },
+          {
+            title: "国内・日本人・風景",
+            desc: "日本のビジネスシーンや生活感のある画像が必要な場合に最適です。",
+            icon: "fas fa-camera",
+            sites: [
+              { name: "写真AC", desc: "国内最大級。日本人・風景。要登録。", baseUrl: "https://www.photo-ac.com/", queryUrl: "https://www.photo-ac.com/main/search?q=dummy" },
+              { name: "ぱくたそ", desc: "登録不要。時事ネタや企画写真。", baseUrl: "https://www.pakutaso.com/", queryUrl: "https://www.pakutaso.com/search.html?search=dummy" },
+              { name: "GIRLY DROP", desc: "女の子による女の子な写真素材。", baseUrl: "https://girlydrop.com/", queryUrl: "https://girlydrop.com/?s=dummy" },
+              { name: "food.foto", desc: "プロ撮影の食材・料理写真。", baseUrl: "https://food.foto.ne.jp/", queryUrl: "https://food.foto.ne.jp/search/search.php?search_word=dummy" },
+              { name: "ビジトリー", desc: "ビジネス、医療、美容系の人物。", baseUrl: "http://busitry-photo.info/", queryUrl: "http://busitry-photo.info/?s=dummy" }
+            ]
+          },
+          {
+            title: "イラスト・アイコン",
+            desc: "プレゼン資料やUIデザインなどで活躍するイラスト系サイトです。",
+            icon: "fas fa-pen-nib",
+            sites: [
+              { name: "いらすとや", desc: "有名フリーイラスト。時事ネタも。", baseUrl: "https://www.irasutoya.com/", queryUrl: "https://www.irasutoya.com/search?q=dummy" },
+              { name: "イラストAC", desc: "多種多様なタッチ。要登録。", baseUrl: "https://www.ac-illust.com/", queryUrl: "https://www.ac-illust.com/main/search?q=dummy" },
+              { name: "unDraw", desc: "テック系。色変更可。※検索なし", baseUrl: "https://undraw.co/illustrations", queryUrl: "https://undraw.co/illustrations", noSearch: true },
+              { name: "Linustock", desc: "シンプルでお洒落な線画。", baseUrl: "https://www.linustock.com/", queryUrl: "https://www.linustock.com/?s=dummy" },
+              { name: "Loose Drawing", desc: "手書き感のある緩いイラスト。", baseUrl: "https://loosedrawing.com/", queryUrl: "https://loosedrawing.com/?s=dummy" },
+              { name: "ソコスト", desc: "シンプルで癖がないイラスト。", baseUrl: "https://soco-st.com/", queryUrl: "https://soco-st.com/?s=dummy" },
+              { name: "FLAT ICON", desc: "高品質なフラットアイコン。", baseUrl: "http://flat-icon-design.com/", queryUrl: "http://flat-icon-design.com/?s=dummy" },
+              { name: "ICOON MONO", desc: "モノトーンアイコン。色変更可。", baseUrl: "https://icooon-mono.com/", queryUrl: "https://icooon-mono.com/?s=dummy" }
+            ]
+          },
+          {
+            title: "有料・プロ向け",
+            desc: "商用利用の権利関係がクリアで、圧倒的な保有数を誇ります。",
+            icon: "fas fa-crown",
+            sites: [
+              { name: "Adobe Stock", desc: "Adobe連携最強。高品質。", baseUrl: "https://stock.adobe.com/jp/", queryUrl: "https://stock.adobe.com/jp/search?k=dummy" },
+              { name: "Shutterstock", desc: "世界最大級。動画・音楽も。", baseUrl: "https://www.shutterstock.com/ja/", queryUrl: "https://www.shutterstock.com/ja/search/dummy" },
+              { name: "PIXTA", desc: "日本人の素材は世界最強クラス。", baseUrl: "https://pixta.jp/", queryUrl: "https://pixta.jp/search?keyword=dummy" },
+              { name: "iStock", desc: "Getty運営。手頃で使いやすい。", baseUrl: "https://www.istockphoto.com/jp", queryUrl: "https://www.istockphoto.com/jp/search/2/image?phrase=dummy" }
+            ]
+          },
+          {
+            title: "横断検索",
+            desc: "複数のフリー素材サイトを横断して検索できる時短ツール。",
+            icon: "fas fa-layer-group",
+            sites: [
+              { name: "O-DAN", desc: "海外サイトを日本語で横断検索。", baseUrl: "https://o-dan.net/ja/", queryUrl: "https://o-dan.net/ja/search?q=dummy" },
+              { name: "タワザ", desc: "国内サイトを横断検索。", baseUrl: "http://tawaza.com/", queryUrl: "http://tawaza.com/?s=dummy" }
+            ]
+          }
+        ];
+
+        // URL生成ロジック
+        const generateUrl = (pattern) => {
+          if (!keyword.value) return '#'; // キーワードがない場合は無効
+          // URLエンコードをして、dummy部分を置換
+          return pattern.replace('dummy', encodeURIComponent(keyword.value));
+        };
+
+        // ドメイン表示用のヘルパー
+        const extractDomain = (url) => {
+          try {
+            return new URL(url).hostname;
+          } catch (e) {
+            return url;
+          }
+        };
+
+        return {
+          keyword,
+          siteData,
+          generateUrl,
+          extractDomain
+        };
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+
+</html>
