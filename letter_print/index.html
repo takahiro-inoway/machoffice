@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>印刷プレビューアプリケーション</title>
+  <!-- Bulma CSS CDN -->
+  <link rel="stylesheet" href="bulma.min.css">
+  <!-- Vue 3 CDN -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    div,
+    span {
+      white-space: break-spaces;
+    }
+
+    /* 印刷時の設定 */
+    @media print {
+
+      /* ページ全体で非表示にし、印刷エリアだけを見えるようにする */
+      body {
+        background: white !important;
+      }
+
+      /* 印刷エリアをページの左上（印刷開始位置）に配置し、幅を100%にする */
+      #print-area {
+        border: 0px solid white !important;
+      }
+
+      /* 印刷エリア内の不要な要素を調整する場合はここに追加 */
+      .print-none {
+        display: none !important;
+      }
+    }
+
+    body {
+      background: lightgray;
+    }
+
+    #app {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+
+    .print-outer {
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    #print-area-A4 {
+      width: 595px !important;
+      min-width: 595px !important;
+      max-width: 595px !important;
+
+      height: 842px !important;
+      min-height: 842px !important;
+      max-height: 842px !important;
+
+      padding: 40px 40px 0 40px;
+    }
+
+    #print-area-K2 {
+      width: 640px !important;
+      min-width: 640px !important;
+      max-width: 640px !important;
+
+      height: 886px !important;
+      min-height: 886px !important;
+      max-height: 886px !important;
+
+      padding: 40px 40px 0 40px;
+    }
+
+    #print-area-N4 {
+      width: 372px !important;
+      min-width: 372px !important;
+      max-width: 372px !important;
+
+      height: 850px !important;
+      min-height: 850px !important;
+      max-height: 850px !important;
+
+      padding: 16px 16px 0 16px;
+    }
+
+    #print-area-YN3Y {
+      width: 434px !important;
+      min-width: 434px !important;
+      max-width: 434px !important;
+
+      height: 850px !important;
+      min-height: 850px !important;
+      max-height: 850px !important;
+
+      padding: 16px 16px 0 16px;
+    }
+
+    #print-area-YN3T {
+      width: 850px !important;
+      min-width: 850px !important;
+      max-width: 850px !important;
+
+      height: 434px !important;
+      min-height: 434px !important;
+      max-height: 434px !important;
+
+      padding: 56px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app">
+
+
+    <div class="print-none m-4" style="display: flex;">
+      <div>
+        <label class="label">郵便番号</label>
+        <input class="input" type="text" v-model="printData.postcode" />
+        <label class="label">住所1（都道府県・市区町村）</label>
+        <input class="input" type="text" v-model="printData.address_1" />
+        <label class="label">住所2（番地・建物名）</label>
+        <input class="input" type="text" v-model="printData.address_2" />
+      </div>
+      <div>
+        <label class="label">会社名</label>
+        <input class="input" type="text" v-model="printData.company" />
+        <label class="label">部署名</label>
+        <input class="input" type="text" v-model="printData.section" />
+        <label class="label">氏名</label>
+        <input class="input" type="text" v-model="printData.name" />
+      </div>
+    </div>
+
+    <div class="control print-none m-4">
+      <label class="radio">
+        <input v-model="letter_type" value="A4" @change="letter_type = 'A4'" type="radio" name="letter_type" />
+        A4(595x842)
+      </label>
+      <label class="radio">
+        <input v-model="letter_type" value="K2" @change="letter_type = 'K2'" type="radio" name="letter_type" />
+        角型２号(640x886)
+      </label>
+      <label class="radio">
+        <input v-model="letter_type" value="N4" @change="letter_type = 'N4'" type="radio" name="letter_type" />
+        長型４号(372x850)
+      </label>
+      <label class="radio">
+        <input v-model="letter_type" value="YN3Y" @change="letter_type = 'YN3Y'" type="radio" name="letter_type" />
+        洋形３号タテ(434x850)
+      </label>
+      <label class="radio">
+        <input v-model="letter_type" value="YN3T" @change="letter_type = 'YN3T'" type="radio" name="letter_type" />
+        洋形３号ヨコ(850x434)
+      </label>
+    </div>
+
+    <button class="button print-none m-4 is-link" @click="printPage">
+      <span>印刷</span>
+    </button>
+
+    <div v-if="letter_type == 'A4'" id="print-area-A4" class="print-outer">
+      <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
+        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+      </div>
+      <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
+        <div style="width: 33.3%; ">　</div>
+        <div
+          style="width: 33.3%; display: flex; flex-direction: column; justify-content: center; writing-mode: vertical-rl; padding-top: 72px;">
+          <div style="font-size: 32px;">{{ printData.company }}</div>
+          <div style="font-size: 28px;">
+            {{ printData.section }}　
+            <span style="font-size: 44px; letter-spacing: 20px;">{{ printData.name}}　様</span>
+          </div>
+        </div>
+        <div style="width: 33.3%; height: 90%; writing-mode: vertical-rl; font-size: 28px;">
+          {{ printData.address_1 }}
+          {{ printData.address_2 }}
+        </div>
+      </div>
+      <div></div>
+    </div>
+
+    <div v-if="letter_type == 'K2'" id="print-area-K2" class="print-outer">
+      <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
+        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+      </div>
+      <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
+        <div style="width: 33.3%; ">　</div>
+        <div
+          style="width: 33.3%; display: flex; flex-direction: column; justify-content: center; writing-mode: vertical-rl; padding-top: 72px;">
+          <div style="font-size: 32px;">{{ printData.company }}</div>
+          <div style="font-size: 28px;">
+            {{ printData.section }}　
+            <span style="font-size: 44px; letter-spacing: 20px;">{{ printData.name}}　様</span>
+          </div>
+        </div>
+        <div style="width: 33.3%; height: 90%; writing-mode: vertical-rl; font-size: 28px;">
+          {{ printData.address_1 }}
+          {{ printData.address_2 }}
+        </div>
+      </div>
+      <div></div>
+    </div>
+
+    <div v-if="letter_type == 'N4'" id="print-area-N4" class="print-outer">
+      <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
+        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+      </div>
+      <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
+        <div style="width: 33.3%; ">　</div>
+        <div
+          style="width: 33.3%; display: flex; flex-direction: column; justify-content: center; writing-mode: vertical-rl; padding-top: 72px;">
+          <div style="font-size: 28px;">{{ printData.company }}</div>
+          <div style="font-size: 24px;">
+            {{ printData.section }}　
+            <span style="font-size: 40px; letter-spacing: 16px;">{{ printData.name}}　様</span>
+          </div>
+        </div>
+        <div style="width: 33.3%; height: 90%; writing-mode: vertical-rl; font-size: 24px;">
+          {{ printData.address_1 }}
+          {{ printData.address_2 }}
+        </div>
+      </div>
+      <div></div>
+    </div>
+
+    <div v-if="letter_type == 'YN3Y'" id="print-area-YN3Y" class="print-outer">
+      <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
+        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+      </div>
+      <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
+        <div style="width: 33.3%; ">　</div>
+        <div
+          style="width: 33.3%; display: flex; flex-direction: column; justify-content: center; writing-mode: vertical-rl; padding-top: 72px;">
+          <div style="font-size: 28px;">{{ printData.company }}</div>
+          <div style="font-size: 24px;">
+            {{ printData.section }}　
+            <span style="font-size: 40px; letter-spacing: 16px;">{{ printData.name}}　様</span>
+          </div>
+        </div>
+        <div style="width: 33.3%; height: 90%; writing-mode: vertical-rl; font-size: 24px;">
+          {{ printData.address_1 }}
+          {{ printData.address_2 }}
+        </div>
+      </div>
+      <div></div>
+    </div>
+
+    <div v-if="letter_type == 'YN3T'" id="print-area-YN3T" class="print-outer">
+      <div style="width: 100%; padding-right: 136px; font-size: 24px;">
+        <div>{{ printData.postcode }}</div>
+        <div style="width: 100%;">
+          {{ printData.address_1 }}
+          {{ printData.address_2 }}
+        </div>
+        <div style="padding-left: 28px;">
+          {{ printData.company }}　
+          {{ printData.section }}
+        </div>
+        <div>　</div>
+        <div>
+          <span style="padding-left: 28px; font-size: 42px; letter-spacing: 18px;">{{ printData.name}}　様</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="height: 800px;"></div>
+
+  </div>
+
+
+
+
+  <script type="module">
+    import {
+      createApp,
+      ref,
+      nextTick,
+      onBeforeMount,
+      onMounted,
+      onBeforeUpdate,
+      onUpdated,
+      onBeforeUnmount,
+      onUnmounted
+    } from 'vue3_5_13.esm-browser.js';
+
+    createApp({
+      // setup() 関数がロジックの中心となります
+      setup() {
+        //
+        const letter_type = ref("A4");
+
+        // 📘 データ定義
+        const printData = ref({
+          postcode: '000-0000',
+          address_1: '福岡県',
+          address_2: '福岡市中央区天神１丁目１番１－１ 福岡中央タワービルディング８階 ９０９号室',
+          company: '●▼■株式会社',
+          section: '総務課',
+          position: '総務部長',
+          name: '福岡 太郎',
+        });
+
+        // otherData は str4 以降の動的なデータを保持
+        const otherData = ref({});
+
+
+        // 🛠️ メソッド定義
+        /**
+         * ブラウザの印刷ダイアログを表示する
+         */
+        const printPage = () => {
+          console.log('printPage')
+          window.print();
+        };
+
+        /**
+         * URLのGETパラメーターを解析し、データを更新する
+         */
+        const loadUrlParameters = () => {
+          const params = new URLSearchParams(window.location.search);
+          const newOtherData = {};
+
+          for (const [key, value] of params.entries()) {
+            if (key.startsWith('str') && !isNaN(parseInt(key.substring(3)))) {
+              const strIndex = parseInt(key.substring(3));
+
+              // str1, str2, str3 は printData を直接更新
+              if (strIndex >= 1 && strIndex <= 3) {
+                if (value) {
+                  printData[key] = value;
+                }
+              } else {
+                // str4 以降は otherData に格納
+                newOtherData[key] = value;
+              }
+            }
+          }
+
+          // str4以降のデータをセット
+          otherData.value = newOtherData;
+        };
+
+
+        // 🔄 ライフサイクルフック
+        // コンポーネントがマウントされたらすぐにURLパラメーターを読み込む
+        onMounted(() => {
+          loadUrlParameters();
+        });
+
+        // テンプレートで使用したいデータとメソッドをすべて返します
+        return {
+          letter_type,
+          printData,
+          otherData,
+          printPage,
+          // loadUrlParameters はテンプレートでは使用しないため返さなくてもOK
+        };
+      }
+    }).mount('#app')
+  </script>
+
+</body>
+
+</html>
