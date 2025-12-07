@@ -118,9 +118,11 @@
   <div id="app">
 
     <div class="print-none m-4">
-      <button class="input" @click="getZipcodeByAddressPromise">
-        {{ postcodeget_button_label }}
-      </button>
+      <button class="input" @click="postcodeapi_srcset">住所から郵便番号を検索</button>
+    </div>
+
+    <div v-if="postcodeapi_url" style="background: white;">
+      <iframe style="height: 3rem;" :src="postcodeapi_url"></iframe>
     </div>
 
     <div class="print-none m-4" style="display: flex;">
@@ -310,7 +312,7 @@
         //
         const letter_type = ref("A4");
         //
-        const postcodeget_button_label = ref('住所から郵便番号を検索')
+        const postcodeapi_url = ref('')
 
         // 📘 データ定義
         const printData = ref({
@@ -354,37 +356,10 @@
         //
         // 郵便番号検索
         //
-        const getZipcodeByAddressPromise = () => {
+        const postcodeapi_srcset = () => {
           //
-          postcodeget_button_label.value = '検索しています・・・'
-          //
-          // 1. axios.get() は Promise を返す
-          return axios.get('https://api.excelapi.org/post/zipcode', {
-            params: {
-              address: printData.value.address_1 + printData.value.address_2
-            }
-          })
-            //
-            // 2. 成功した場合の処理を .then() で定義
-            .then(response => {
-              const zipcode = response.data;
-
-              // 値の検証
-              if (typeof zipcode === 'string' && /^\d{7}$/.test(zipcode)) {
-                postcodeget_button_label.value = '郵便番号が見つかりました（クリックで再検索）'
-                printData.value.postcode = zipcode
-              } else {
-                postcodeget_button_label.value = 'システムからの応答がエラーです:E0001'
-              }
-            })
-            //
-            // 3. 失敗した場合（エラー）の処理を .catch() で定義
-            .catch(error => {
-              // エラー処理（例: ネットワークエラー、APIからのエラー応答など）
-              postcodeget_button_label.value = '郵便番号取得中にエラーが発生しました:E0002'
-            });
+          postcodeapi_url.value = 'https://api.excelapi.org/post/zipcode?address=' + printData.value.address_1 + printData.value.address_2
         }
-
 
         // 🔄 ライフサイクルフック
         // コンポーネントがマウントされたらすぐにURLパラメーターを読み込む
@@ -395,11 +370,11 @@
         // テンプレートで使用したいデータとメソッドをすべて返します
         return {
           letter_type,
-          postcodeget_button_label,
+          postcodeapi_url,
+          postcodeapi_srcset,
           printData,
           otherData,
           printPage,
-          getZipcodeByAddressPromise,
           // loadUrlParameters はテンプレートでは使用しないため返さなくてもOK
         };
       }
@@ -407,6 +382,5 @@
   </script>
 
 </body>
-
 
 </html>
