@@ -117,6 +117,11 @@
 
   <div id="app">
 
+    <div class="print-none m-4">
+      <button class="input" @click="getZipcodeByAddressPromise">
+        {{ postcodeget_button_label }}
+      </button>
+    </div>
 
     <div class="print-none m-4" style="display: flex;">
       <div>
@@ -166,7 +171,9 @@
 
     <div v-if="letter_type == 'A4'" id="print-area-A4" class="print-outer">
       <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
-        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+        <div style="font-size: 28px;">
+          〒{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}
+        </div>
       </div>
       <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
         <div style="width: 33.3%; ">　</div>
@@ -188,7 +195,9 @@
 
     <div v-if="letter_type == 'K2'" id="print-area-K2" class="print-outer">
       <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
-        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+        <div style="font-size: 28px;">
+          〒{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}
+        </div>
       </div>
       <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
         <div style="width: 33.3%; ">　</div>
@@ -210,7 +219,9 @@
 
     <div v-if="letter_type == 'N4'" id="print-area-N4" class="print-outer">
       <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
-        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+        <div style="font-size: 28px;">
+          〒{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}
+        </div>
       </div>
       <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
         <div style="width: 33.3%; ">　</div>
@@ -232,7 +243,9 @@
 
     <div v-if="letter_type == 'YN3Y'" id="print-area-YN3Y" class="print-outer">
       <div style="width: 100%;display: flex; flex-direction: row; justify-content: flex-end; padding-bottom: 16px;">
-        <div style="font-size: 28px;">{{ printData.postcode }}</div>
+        <div style="font-size: 28px;">
+          〒{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}
+        </div>
       </div>
       <div style="width: 100%; max-height: 90%; display: flex; justify-content: space-between;">
         <div style="width: 33.3%; ">　</div>
@@ -254,7 +267,7 @@
 
     <div v-if="letter_type == 'YN3T'" id="print-area-YN3T" class="print-outer">
       <div style="width: 100%; padding-right: 136px; font-size: 24px;">
-        <div>{{ printData.postcode }}</div>
+        <div>{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}</div>
         <div style="width: 100%;">
           {{ printData.address_1 }}
           {{ printData.address_2 }}
@@ -274,7 +287,8 @@
 
   </div>
 
-
+  <!--Axios-->
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 
 
   <script type="module">
@@ -295,15 +309,16 @@
       setup() {
         //
         const letter_type = ref("A4");
+        //
+        const postcodeget_button_label = ref('住所から郵便番号を検索')
 
         // 📘 データ定義
         const printData = ref({
-          postcode: '000-0000',
+          postcode: '0000000',
           address_1: '福岡県',
           address_2: '福岡市中央区天神１丁目１番１－１ 福岡中央タワービルディング８階 ９０９号室',
           company: '●▼■株式会社',
           section: '総務課',
-          position: '総務部長',
           name: '福岡 太郎',
         });
 
@@ -316,7 +331,6 @@
          * ブラウザの印刷ダイアログを表示する
          */
         const printPage = () => {
-          console.log('printPage')
           window.print();
         };
 
@@ -326,26 +340,50 @@
         const loadUrlParameters = () => {
           const params = new URLSearchParams(window.location.search);
           const newOtherData = {};
-
-          for (const [key, value] of params.entries()) {
-            if (key.startsWith('str') && !isNaN(parseInt(key.substring(3)))) {
-              const strIndex = parseInt(key.substring(3));
-
-              // str1, str2, str3 は printData を直接更新
-              if (strIndex >= 1 && strIndex <= 3) {
-                if (value) {
-                  printData[key] = value;
-                }
-              } else {
-                // str4 以降は otherData に格納
-                newOtherData[key] = value;
-              }
-            }
-          }
-
+          //
+          printData.value.postcode = params.get('postcode').split('-').join('') ?? printData.value.postcode
+          printData.value.address_1 = params.get('address_1') ?? printData.value.address_1
+          printData.value.address_2 = params.get('address_2') ?? printData.value.address_2
+          printData.value.company = params.get('company') ?? printData.value.company
+          printData.value.section = params.get('section') ?? printData.value.section
+          printData.value.name = params.get('name') ?? printData.value.name
           // str4以降のデータをセット
           otherData.value = newOtherData;
         };
+
+        //
+        // 郵便番号検索
+        //
+        const getZipcodeByAddressPromise = () => {
+          //
+          postcodeget_button_label.value = '検索しています・・・'
+          //
+          // 1. axios.get() は Promise を返す
+          return axios.get('https://api.excelapi.org/post/zipcode', {
+            params: {
+              address: printData.value.address_1 + printData.value.address_2
+            }
+          })
+            //
+            // 2. 成功した場合の処理を .then() で定義
+            .then(response => {
+              const zipcode = response.data;
+
+              // 値の検証
+              if (typeof zipcode === 'string' && /^\d{7}$/.test(zipcode)) {
+                postcodeget_button_label.value = '郵便番号が見つかりました（クリックで再検索）'
+                printData.value.postcode = zipcode
+              } else {
+                postcodeget_button_label.value = 'システムからの応答がエラーです:E0001'
+              }
+            })
+            //
+            // 3. 失敗した場合（エラー）の処理を .catch() で定義
+            .catch(error => {
+              // エラー処理（例: ネットワークエラー、APIからのエラー応答など）
+              postcodeget_button_label.value = '郵便番号取得中にエラーが発生しました:E0002'
+            });
+        }
 
 
         // 🔄 ライフサイクルフック
@@ -357,9 +395,11 @@
         // テンプレートで使用したいデータとメソッドをすべて返します
         return {
           letter_type,
+          postcodeget_button_label,
           printData,
           otherData,
           printPage,
+          getZipcodeByAddressPromise,
           // loadUrlParameters はテンプレートでは使用しないため返さなくてもOK
         };
       }
@@ -367,6 +407,5 @@
   </script>
 
 </body>
-
 
 </html>
