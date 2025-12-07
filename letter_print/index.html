@@ -4,6 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="no-referrer">
   <title>印刷プレビューアプリケーション</title>
   <!-- Bulma CSS CDN -->
   <link rel="stylesheet" href="bulma.min.css">
@@ -269,7 +270,7 @@
 
     <div v-if="letter_type == 'YN3T'" id="print-area-YN3T" class="print-outer">
       <div style="width: 100%; padding-right: 136px; font-size: 24px;">
-        <div>{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}</div>
+        <div>〒{{ printData.postcode.substring(0, 3) }}-{{ printData.postcode.slice(-4) }}</div>
         <div style="width: 100%;">
           {{ printData.address_1 }}
           {{ printData.address_2 }}
