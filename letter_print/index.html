@@ -7,8 +7,6 @@
   <title>印刷プレビューアプリケーション</title>
   <!-- Bulma CSS CDN -->
   <link rel="stylesheet" href="bulma.min.css">
-  <!-- Vue 3 CDN -->
-  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
   <style>
     div,
     span {
@@ -290,7 +288,7 @@
       onUpdated,
       onBeforeUnmount,
       onUnmounted
-    } from 'vue3_5_13.esm-browser.js';
+    } from 'https://unpkg.com/vue@3/dist/vue.esm-browser.js';
 
     createApp({
       // setup() 関数がロジックの中心となります
@@ -369,5 +367,6 @@
   </script>
 
 </body>
+
 
 </html>
