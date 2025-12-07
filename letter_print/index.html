@@ -341,7 +341,7 @@
           const params = new URLSearchParams(window.location.search);
           const newOtherData = {};
           //
-          printData.value.postcode = params.get('postcode').split('-').join('') ?? printData.value.postcode
+          printData.value.postcode = params.get('postcode') ?? printData.value.postcode
           printData.value.address_1 = params.get('address_1') ?? printData.value.address_1
           printData.value.address_2 = params.get('address_2') ?? printData.value.address_2
           printData.value.company = params.get('company') ?? printData.value.company
@@ -407,5 +407,6 @@
   </script>
 
 </body>
+
 
 </html>
