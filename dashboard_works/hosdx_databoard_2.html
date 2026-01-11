@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>医療統計ダッシュボード</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.css">
+  <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f1f5f9;
+      font-size: 0.8125rem;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 200px;
+      width: 100%;
+    }
+
+    .dataTables_wrapper .dataTables_filter {
+      display: none;
+    }
+
+    table.dataTable thead th {
+      font-size: 0.7rem;
+      padding: 6px 10px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e2e8f0 !important;
+    }
+
+    table.dataTable tbody td {
+      padding: 4px 10px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+
+    .compact-header {
+      background: linear-gradient(90deg, #0f172a 0%, #1e293b 100%);
+    }
+
+    .card {
+      background: white;
+      border-radius: 0.5rem;
+      border: 1px solid #e2e8f0;
+      box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    }
+
+    input[type="checkbox"] {
+      cursor: pointer;
+      width: 1rem;
+      height: 1rem;
+    }
+  </style>
+</head>
+
+<body class="text-slate-700">
+
+  <header class="compact-header text-white py-3 px-6 shadow-md mb-3">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-2">
+        <i data-lucide="activity" class="text-blue-400 w-5 h-5"></i>
+        <h1 class="text-base font-bold tracking-tight">薬剤点数統計ダッシュボード</h1>
+      </div>
+
+      <div class="relative w-full max-w-md">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+          <i data-lucide="search" class="w-4 h-4"></i>
+        </div>
+        <input type="text" id="globalSearch"
+          class="block w-full pl-9 pr-3 py-1 rounded-lg bg-slate-800 border-slate-700 text-white text-xs focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+          placeholder="入院/外、年齢階級で検索...">
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1600px] mx-auto px-4 pb-6">
+    <div class="grid grid-cols-12 gap-3 mb-3">
+      <!-- 統計カード -->
+      <div class="col-span-12 lg:col-span-2 flex flex-col gap-2">
+        <div class="card p-2.5">
+          <p class="text-[9px] uppercase font-bold text-slate-400">表示合計点数</p>
+          <p class="text-lg font-bold text-blue-600" id="stat-total-points">0</p>
+        </div>
+        <div class="card p-2.5">
+          <p class="text-[9px] uppercase font-bold text-slate-400">後発医薬品</p>
+          <p class="text-lg font-bold text-emerald-600" id="stat-generic-points">0</p>
+        </div>
+        <div class="card p-2.5">
+          <p class="text-[9px] uppercase font-bold text-slate-400">有効データ件数</p>
+          <p class="text-lg font-bold text-slate-800" id="stat-row-count">0</p>
+        </div>
+        <div class="card p-2.5 bg-slate-50 border-dashed">
+          <p class="text-[9px] uppercase font-bold text-slate-500">抽出設定</p>
+          <select id="chartMetric"
+            class="w-full mt-1 bg-transparent border-none font-bold text-xs outline-none cursor-pointer text-blue-700">
+            <option value="総数">総数</option>
+            <option value="後発医薬品（再掲）">後発医薬品</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- メイン棒グラフ -->
+      <div class="col-span-12 md:col-span-6 lg:col-span-6 card p-3">
+        <h3 class="text-[11px] font-bold mb-1 flex items-center gap-1 text-slate-500">
+          <i data-lucide="bar-chart-3" class="w-3 h-3"></i> 項目別点数（選択データのみ）
+        </h3>
+        <div class="chart-container">
+          <canvas id="mainBarChart"></canvas>
+        </div>
+      </div>
+
+      <!-- 比率グラフ -->
+      <div class="col-span-12 md:col-span-6 lg:col-span-4 card p-3">
+        <h3 class="text-[11px] font-bold mb-1 text-slate-500 flex items-center gap-1">
+          <i data-lucide="pie-chart" class="w-3 h-3"></i> 入院・入院外 比率
+        </h3>
+        <div class="chart-container">
+          <canvas id="typePieChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- 薬価積み上げグラフ -->
+    <div class="grid grid-cols-1 gap-3 mb-3">
+      <div class="card p-3">
+        <h3 class="text-[11px] font-bold mb-1 text-slate-500 flex items-center gap-1">
+          <i data-lucide="layers" class="w-3 h-3"></i> 薬価階級別の内訳（上位15件）
+        </h3>
+        <div class="chart-container" style="height: 160px;">
+          <canvas id="priceStackChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- テーブルセクション -->
+    <div class="card overflow-hidden">
+      <div class="px-4 py-1.5 border-b flex items-center justify-between bg-slate-50">
+        <div class="flex items-center gap-4">
+          <span class="text-[11px] font-bold text-slate-600">データ詳細</span>
+          <label class="text-[10px] text-slate-500 flex items-center gap-1 cursor-pointer">
+            <input type="checkbox" id="selectAll" checked class="w-3.5 h-3.5"> ページ内全選択/解除
+          </label>
+        </div>
+        <button onclick="resetFilters()"
+          class="text-[10px] font-bold text-blue-600 flex items-center gap-1 hover:underline">
+          <i data-lucide="rotate-ccw" class="w-3 h-3"></i> 初期状態に戻す
+        </button>
+      </div>
+      <div class="p-1">
+        <table id="mainTable" class="w-full text-left display compact cell-border" style="width:100%">
+          <thead class="text-slate-500">
+            <tr id="tableHead"></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    $.fn.dataTable.ext.errMode = 'none';
+
+    let rawData = [];
+    let filteredData = [];
+    let dataTableInstance = null;
+    let charts = {};
+
+    // 鮮やかなカラーパレット
+    const PRICE_COLORS = ['#38bdf8', '#818cf8', '#a78bfa', '#f472b6', '#fb7185', '#fb923c', '#475569'];
+
+    async function loadCSV() {
+      try {
+        const response = await fetch('2024yi0015.csv');
+        if (!response.ok) throw new Error('CSV error');
+        const arrayBuffer = await response.arrayBuffer();
+        const text = new TextDecoder('shift-jis').decode(arrayBuffer);
+        const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
+
+        let headerIndex = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].includes("総数") && lines[i].includes("50円未満")) {
+            headerIndex = i;
+            break;
+          }
+        }
+
+        if (headerIndex === -1) return;
+
+        const colNames = ["入院－入院外", "一般医療－後期医療・年齢階級", "総数", "250円未満総数", "50円未満", "50～100円未満", "100～150円未満", "150～200円未満", "200～250円未満", "250～500円未満", "500円以上", "後発医薬品（再掲）"];
+        const dataStart = headerIndex + 2;
+
+        let counter = 1;
+        rawData = lines.slice(dataStart).map(line => {
+          const cols = line.split(',');
+          if (!cols[0] || cols[0].includes("入院－入院外")) return null;
+
+          const row = { "有効": true, "No.": counter++ };
+          colNames.forEach((name, idx) => {
+            let val = (cols[idx] || "").trim().replace(/,/g, '');
+            row[name] = (!isNaN(val) && val !== "") ? parseFloat(val) : (cols[idx] || "").trim();
+          });
+          return row;
+        }).filter(r => r !== null);
+
+        if (rawData.length > 0) {
+          filteredData = [...rawData];
+          initApp();
+        }
+      } catch (err) {
+        console.error("Data loading error:", err);
+      }
+    }
+
+    function initApp() {
+      lucide.createIcons();
+
+      const keys = Object.keys(rawData[0]);
+      document.getElementById('tableHead').innerHTML = keys.map(k => `<th>${k}</th>`).join('');
+
+      dataTableInstance = $('#mainTable').DataTable({
+        data: rawData,
+        columns: keys.map(k => {
+          if (k === "有効") {
+            return {
+              data: k,
+              render: (data, type, row) => {
+                return `<input type="checkbox" class="row-select" ${data ? 'checked' : ''}>`;
+              },
+              orderable: false,
+              width: "25px"
+            };
+          }
+          return { data: k, defaultContent: "" };
+        }),
+        language: { url: "https://cdn.datatables.net/plug-ins/1.13.7/i18n/ja.json" },
+        pageLength: 50,
+        order: [[1, 'asc']], // No. 列
+        dom: 'rtip',
+        scrollX: true,
+        scrollY: '320px',
+        scrollCollapse: true,
+        columnDefs: [{ targets: [1, 2, 3], className: 'font-bold' }]
+      });
+
+      // チェックボックス変更時の即時グラフ更新
+      $('#mainTable tbody').on('change', '.row-select', function () {
+        const cell = dataTableInstance.cell($(this).closest('td'));
+        const row = dataTableInstance.row($(this).closest('tr'));
+        const data = row.data();
+
+        // データモデルを更新
+        data.有効 = this.checked;
+
+        // 内部キャッシュの更新を強制
+        cell.data(this.checked);
+
+        // 集計とグラフを再描画
+        syncWithTable();
+      });
+
+      // ページ内全選択
+      document.getElementById('selectAll').addEventListener('change', function () {
+        const isChecked = this.checked;
+        // 現在表示されている（フィルタ後の）行すべてに適用
+        const rows = dataTableInstance.rows({ filter: 'applied' });
+        rows.every(function () {
+          let d = this.data();
+          d.有効 = isChecked;
+        });
+        // テーブル表示をリフレッシュ
+        dataTableInstance.rows().invalidate().draw(false);
+        syncWithTable();
+      });
+
+      // 検索・並び替え時
+      document.getElementById('globalSearch').addEventListener('input', (e) => {
+        dataTableInstance.search(e.target.value).draw();
+      });
+
+      document.getElementById('chartMetric').addEventListener('change', syncWithTable);
+
+      dataTableInstance.on('draw.dt', () => {
+        syncWithTable();
+      });
+
+      syncWithTable();
+    }
+
+    function syncWithTable() {
+      if (!dataTableInstance) return;
+      // 現在のテーブル状態（検索結果+並び順）から、有効なものだけを抽出
+      const allVisibleData = dataTableInstance.rows({ filter: 'applied', order: 'current' }).data().toArray();
+      filteredData = allVisibleData.filter(d => d.有効 === true);
+      updateDashboard();
+    }
+
+    function updateDashboard() {
+      const metric = document.getElementById('chartMetric').value;
+
+      // カード集計
+      const total = filteredData.reduce((s, r) => s + (Number(r['総数']) || 0), 0);
+      const generic = filteredData.reduce((s, r) => s + (Number(r['後発医薬品（再掲）']) || 0), 0);
+
+      document.getElementById('stat-total-points').innerText = Math.round(total).toLocaleString();
+      document.getElementById('stat-generic-points').innerText = Math.round(generic).toLocaleString();
+      document.getElementById('stat-row-count').innerText = filteredData.length;
+
+      // グラフ用データ（「総数」行を除外）
+      const graphData = filteredData.filter(d => d['一般医療－後期医療・年齢階級'] !== '総数').slice(0, 15);
+
+      renderBarChart(
+        graphData.map(d => `${d['入院－入院外']}\n${d['一般医療－後期医療・年齢階級']}`),
+        graphData.map(d => Number(d[metric]) || 0)
+      );
+
+      // 入院/外比率
+      const types = { '入院': 0, '入院外': 0 };
+      filteredData.forEach(d => {
+        if (d['入院－入院外'] === '入院') types['入院'] += (Number(d[metric]) || 0);
+        if (d['入院－入院外'] === '入院外') types['入院外'] += (Number(d[metric]) || 0);
+      });
+      renderPieChart(Object.keys(types), Object.values(types));
+
+      // 積み上げグラフ
+      renderStackChart(graphData);
+    }
+
+    function renderBarChart(labels, values) {
+      if (charts.bar) charts.bar.destroy();
+      charts.bar = new Chart(document.getElementById('mainBarChart'), {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{ data: values, backgroundColor: '#3b82f6', borderRadius: 3 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 150 },
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { font: { size: 8 } } },
+            y: { beginAtZero: true, ticks: { font: { size: 9 } } }
+          }
+        }
+      });
+    }
+
+    function renderPieChart(labels, values) {
+      if (charts.pie) charts.pie.destroy();
+      charts.pie = new Chart(document.getElementById('typePieChart'), {
+        type: 'doughnut',
+        data: {
+          labels: labels,
+          datasets: [{ data: values, backgroundColor: ['#f43f5e', '#3b82f6'], borderWidth: 1 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 150 },
+          plugins: { legend: { position: 'right', labels: { boxWidth: 12, font: { size: 9 } } } },
+          cutout: '70%'
+        }
+      });
+    }
+
+    function renderStackChart(items) {
+      if (charts.stack) charts.stack.destroy();
+      const cats = ['50円未満', '50～100円未満', '100～150円未満', '150～200円未満', '200～250円未満', '250～500円未満', '500円以上'];
+
+      const datasets = cats.map((cat, i) => ({
+        label: cat,
+        data: items.map(d => Number(d[cat]) || 0),
+        backgroundColor: PRICE_COLORS[i]
+      }));
+
+      charts.stack = new Chart(document.getElementById('priceStackChart'), {
+        type: 'bar',
+        data: {
+          labels: items.map(d => `${d['入院－入院外']}:${d['一般医療－後期医療・年齢階級']}`),
+          datasets: datasets
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 150 },
+          scales: {
+            x: { stacked: true, ticks: { font: { size: 8 } } },
+            y: { stacked: true, ticks: { font: { size: 9 } } }
+          },
+          plugins: { legend: { position: 'right', labels: { boxWidth: 10, font: { size: 8 } } } }
+        }
+      });
+    }
+
+    function resetFilters() {
+      document.getElementById('globalSearch').value = '';
+      document.getElementById('selectAll').checked = true;
+      if (dataTableInstance) {
+        const rows = dataTableInstance.rows();
+        rows.every(function () {
+          this.data().有効 = true;
+        });
+        dataTableInstance.search('').order([1, 'asc']).rows().invalidate().draw();
+      }
+    }
+
+    window.onload = loadCSV;
+  </script>
+</body>
+
+</html>
