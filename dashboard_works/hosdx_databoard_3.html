@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fukuoka Data Analytics Pro Max</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Noto+Sans+JP:wght@400;700&display=swap');
+
+    body {
+      font-family: 'Inter', 'Noto Sans JP', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+      overflow: hidden;
+    }
+
+    .glass-card {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-radius: 0.5rem;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .stat-value {
+      font-feature-settings: "tnum";
+      font-variant-numeric: tabular-nums;
+    }
+
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 10px;
+    }
+
+    .compact-table th,
+    .compact-table td {
+      padding: 0.2rem 0.4rem;
+      line-height: 1;
+      border-bottom: 1px solid #f1f5f9;
+      white-space: nowrap;
+      font-size: 9px;
+    }
+
+    .chart-container {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .table-container {
+      overflow: auto;
+      background: white;
+      flex: 1;
+    }
+  </style>
+</head>
+
+<body class="h-screen flex flex-col text-slate-900 text-[11px]">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-slate-200 h-11 flex items-center shrink-0 shadow-sm px-4">
+    <div class="flex items-center justify-between w-full">
+      <div class="flex items-center gap-3">
+        <div class="p-1.5 bg-blue-600 rounded text-white shadow-sm"><i data-lucide="bar-chart-big" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h1 class="text-xs font-bold tracking-tight text-slate-800">都道府県・市区町村のすがた（社会・人口統計体系）より、2026.1.12取得</h1>
+          <div id="status-indicator" class="flex items-center gap-1.5 text-[8px] font-medium text-slate-400">
+            <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span id="status-text">データ読み込み中</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-4">
+        <!-- Info Text Section -->
+        <div class="flex flex-col items-end leading-none text-[7px] text-slate-400" style="color: red; font-weight: bold;">
+          <span class="flex items-center gap-0.5"><i data-lucide="info" class="w-2 h-2"></i>年度切替可</span>
+          <span>※年度により未調査項目あり:＜末尾0と5のつく年のデータが豊富です＞</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label class="text-[8px] font-bold text-slate-500 uppercase tracking-wider">調査年度:</label>
+          <select id="year-filter"
+            class="bg-slate-50 border border-slate-200 px-2 py-0.5 rounded text-[10px] font-bold focus:ring-2 focus:ring-blue-500 outline-none text-slate-700 cursor-pointer"></select>
+        </div>
+        <div class="relative">
+          <input type="text" id="area-search" placeholder="地域名検索..."
+            class="bg-slate-50 border border-slate-200 px-3 py-0.5 pl-8 rounded text-[10px] focus:ring-2 focus:ring-blue-500 w-40 outline-none text-slate-700">
+          <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400"></i>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-hidden p-2 flex flex-col space-y-2">
+
+    <!-- KPI Row -->
+    <div class="grid grid-cols-6 gap-2 shrink-0">
+      <div class="glass-card p-2 border-l-4 border-l-blue-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">日本人人口</p>
+        <h3 id="kpi-pop" class="text-sm font-bold stat-value text-blue-700">---</h3>
+      </div>
+      <div class="glass-card p-2 border-l-4 border-l-indigo-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">2050年推計</p>
+        <h3 id="kpi-future" class="text-sm font-bold stat-value text-indigo-700">---</h3>
+      </div>
+      <div class="glass-card p-2 border-l-4 border-l-emerald-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">世帯数</p>
+        <h3 id="kpi-households" class="text-sm font-bold stat-value text-emerald-700">---</h3>
+      </div>
+      <div class="glass-card p-2 border-l-4 border-l-amber-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">転入者数(計)</p>
+        <h3 id="kpi-migration" class="text-sm font-bold stat-value text-amber-700">---</h3>
+      </div>
+      <div class="glass-card p-2 border-l-4 border-l-rose-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">医療施設数</p>
+        <h3 id="kpi-medical" class="text-sm font-bold stat-value text-rose-700">---</h3>
+      </div>
+      <div class="glass-card p-2 border-l-4 border-l-slate-500 shadow-sm">
+        <p class="text-[8px] font-bold text-slate-400 uppercase">老人ホーム在所</p>
+        <h3 id="kpi-home" class="text-sm font-bold stat-value text-slate-700">---</h3>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-12 gap-2 flex-1 min-h-0">
+      <div class="col-span-9 flex flex-col space-y-2 min-h-0">
+        <div class="grid grid-cols-3 gap-2 shrink-0">
+          <div class="glass-card p-2 h-40 shadow-sm">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="users"
+                class="w-3 h-3 text-blue-500"></i> 男女別人口構成 (各区)</h4>
+            <div class="chart-container"><canvas id="chart-gender"></canvas></div>
+          </div>
+          <div class="glass-card p-2 h-40 shadow-sm">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-1 flex items-center gap-1"><i
+                data-lucide="arrow-left-right" class="w-3 h-3 text-emerald-500"></i> 転入・転出比較 (各区)</h4>
+            <div class="chart-container"><canvas id="chart-migration-bar"></canvas></div>
+          </div>
+          <div class="glass-card p-2 h-40 shadow-sm">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-1 flex items-center gap-1"><i data-lucide="hospital"
+                class="w-3 h-3 text-rose-500"></i> 医療施設内訳</h4>
+            <div class="chart-container"><canvas id="chart-medical-pie"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 shrink-0">
+          <div class="glass-card p-2 h-44 shadow-sm border-t-2 border-t-cyan-500">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-1 border-b border-slate-100 pb-1 flex items-center gap-1">
+              <i data-lucide="bar-chart" class="w-3 h-3 text-cyan-500"></i> 地域別 人口 vs 世帯数 (各区)</h4>
+            <div class="chart-container"><canvas id="chart-mixed-pop-hholds"></canvas></div>
+          </div>
+          <div class="glass-card p-2 h-44 shadow-sm border-t-2 border-t-orange-500">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-1 border-b border-slate-100 pb-1 flex items-center gap-1">
+              <i data-lucide="activity" class="w-3 h-3 text-orange-500"></i> 医療インフラと施設在所数 (各区)</h4>
+            <div class="chart-container"><canvas id="chart-mixed-medical-home"></canvas></div>
+          </div>
+        </div>
+
+        <div class="glass-card flex-1 min-h-0 overflow-hidden shadow-sm border border-slate-200">
+          <div class="px-3 py-1 bg-slate-50 border-b flex items-center justify-between sticky top-0 z-20">
+            <div class="flex items-center gap-2">
+              <i data-lucide="table" class="w-3 h-3 text-slate-400"></i>
+              <span class="text-[9px] font-bold text-slate-600 uppercase tracking-tight">地域別詳細統計データ (全項目表示)</span>
+            </div>
+            <span id="table-count" class="px-2 py-0.5 bg-slate-200 rounded text-[8px] text-slate-600 font-mono">---
+              records</span>
+          </div>
+          <div class="table-container">
+            <table class="w-full text-left compact-table border-collapse">
+              <thead class="sticky top-0 bg-white shadow-sm z-10 text-slate-400 font-bold">
+                <tr id="table-header-row"></tr>
+              </thead>
+              <tbody id="table-body" class="divide-y divide-slate-50"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-span-3 flex flex-col space-y-2 min-h-0">
+        <div class="glass-card p-2.5 flex-1 min-h-0 shadow-sm overflow-hidden">
+          <h4 class="text-[9px] font-bold text-slate-500 mb-3 border-b border-slate-100 pb-1 uppercase tracking-wide">
+            世代別人口ピラミッド</h4>
+          <div id="pyramid-data" class="space-y-3 overflow-y-auto pr-1"></div>
+
+          <div class="mt-4 pt-4 border-t border-slate-100 flex flex-col h-1/3">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-2 uppercase text-center tracking-wide">男女比率(全体)</h4>
+            <div class="chart-container"><canvas id="chart-gender-pie"></canvas></div>
+          </div>
+
+          <div class="mt-4 pt-4 border-t border-slate-100 flex flex-col flex-1">
+            <h4 class="text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-wide flex items-center gap-1"><i
+                data-lucide="trending-up" class="w-3 h-3"></i> 将来人口トレンド</h4>
+            <div class="chart-container"><canvas id="chart-future"></canvas></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const CSV_URL = 'FEI_CITY_260112191805.csv';
+    let rawData = [];
+    let charts = {};
+    let dataMapping = {};
+
+    lucide.createIcons();
+
+    const formatValue = (v) => {
+      if (v === null || v === undefined) return '';
+      let s = String(v).trim();
+      if (['***', '-', 'X', ''].includes(s)) return s;
+      let n = parseFloat(s.replace(/[",\s]/g, ''));
+      return isNaN(n) ? s : n.toLocaleString();
+    };
+
+    const parseNum = (v) => {
+      if (!v) return 0;
+      let s = String(v).replace(/[",\s]/g, '');
+      if (['***', '-', 'X', ''].includes(s)) return 0;
+      let n = parseFloat(s.replace(/[^\d.-]/g, ''));
+      return isNaN(n) ? 0 : n;
+    };
+
+    window.onload = async () => {
+      await loadCSV();
+    };
+
+    async function loadCSV() {
+      try {
+        const response = await fetch(CSV_URL);
+        const buffer = await response.arrayBuffer();
+        const decoder = new TextDecoder('shift-jis');
+        const text = decoder.decode(buffer);
+
+        Papa.parse(text, {
+          skipEmptyLines: true,
+          complete: (results) => {
+            const data = processCSVData(results.data);
+            if (data && data.length > 0) {
+              rawData = data;
+              initUI();
+            } else {
+              updateStatus('解析エラー: データなし', 'rose');
+            }
+          }
+        });
+      } catch (err) {
+        updateStatus('通信エラー', 'rose');
+        console.error(err);
+      }
+    }
+
+    function processCSVData(rows) {
+      const codeHeaderIdx = rows.findIndex(r => r.some(c => c && (c.includes('A1102') || c.includes('I5101'))));
+      const nameHeaderIdx = codeHeaderIdx + 1;
+      if (codeHeaderIdx === -1) return [];
+
+      const codeHeaders = rows[codeHeaderIdx];
+      const nameHeaders = rows[nameHeaderIdx];
+
+      dataMapping = {};
+      codeHeaders.forEach((code, i) => {
+        if (code && code.match(/^[A-Z]\d+/)) {
+          dataMapping[code] = { index: i, name: nameHeaders[i] || code };
+        }
+      });
+
+      const easyMap = {
+        pop: "A1102", male: "A110201", female: "A110202",
+        m40: "A141501", f40: "A141502", m60: "A141601", f60: "A141602",
+        m70: "A141701", f70: "A141702", m80: "A141801", f80: "A141802",
+        f2030: "A191003", f2040: "A191005", f2050: "A191007",
+        migIn: "A5103", migOut: "A5104", hholds: "A7101",
+        hosp: "I5101", clinic: "I5102",
+        hYang: "J230113", hKei: "J230133", hYu: "J230223"
+      };
+
+      return rows.slice(nameHeaderIdx + 1).map(row => {
+        const year = String(row[1] || "").trim();
+        const area = String(row[3] || "").trim();
+        if (!area || area.includes('地域') || !year) return null;
+
+        let obj = { year, area: area.replace(/\s+/g, ' '), _raw: row };
+        Object.keys(easyMap).forEach(key => {
+          const code = easyMap[key];
+          const idx = codeHeaders.indexOf(code);
+          obj[key] = idx !== -1 ? parseNum(row[idx]) : 0;
+        });
+        return obj;
+      }).filter(Boolean);
+    }
+
+    function initUI() {
+      const yearSel = document.getElementById('year-filter');
+      const years = [...new Set(rawData.map(d => d.year))].sort().reverse();
+      yearSel.innerHTML = '';
+      years.forEach(y => {
+        const opt = document.createElement('option');
+        opt.value = opt.textContent = y;
+        yearSel.appendChild(opt);
+      });
+
+      // GETパラメータからデフォルト年度を取得
+      const urlParams = new URLSearchParams(window.location.search);
+      const paramYear = urlParams.get('y');
+      if (paramYear) {
+        // "2020" -> "2020年度" の補完を試みる
+        const targetYear = paramYear.includes('年度') ? paramYear : paramYear + '年度';
+        if (years.includes(targetYear)) {
+          yearSel.value = targetYear;
+        }
+      }
+
+      yearSel.onchange = render;
+      document.getElementById('area-search').oninput = render;
+
+      const headerRow = document.getElementById('table-header-row');
+      headerRow.innerHTML = '<th class="bg-white border-b border-slate-100 sticky left-0 z-20">地域</th>';
+      Object.values(dataMapping).forEach(m => {
+        headerRow.innerHTML += `<th class="text-right border-b border-slate-100 font-normal text-[8px]">${m.name}</th>`;
+      });
+
+      updateStatus('解析完了', 'emerald');
+      render();
+    }
+
+    function render() {
+      const selYear = document.getElementById('year-filter').value;
+      const search = document.getElementById('area-search').value.toLowerCase();
+      const allData = rawData.filter(d => d.year === selYear && d.area.toLowerCase().includes(search));
+
+      const plotData = allData.filter(d => !d.area.endsWith('福岡市'));
+      const total = (k) => allData.reduce((a, b) => a + (b[k] || 0), 0);
+
+      document.getElementById('kpi-pop').textContent = total('pop').toLocaleString();
+      document.getElementById('kpi-future').textContent = total('f2050').toLocaleString();
+      document.getElementById('kpi-households').textContent = total('hholds').toLocaleString();
+      document.getElementById('kpi-migration').textContent = total('migIn').toLocaleString();
+      document.getElementById('kpi-medical').textContent = (total('hosp') + total('clinic')).toLocaleString();
+      document.getElementById('kpi-home').textContent = (total('hYang') + total('hKei') + total('hYu')).toLocaleString();
+
+      document.getElementById('table-count').textContent = `${allData.length} rec`;
+      document.getElementById('table-body').innerHTML = allData.map(d => {
+        let cells = `<td class="font-bold text-slate-700 sticky left-0 bg-white z-10 border-r border-slate-50 shadow-[1px_0_2px_rgba(0,0,0,0.02)]">${d.area.split(' ').pop()}</td>`;
+        Object.keys(dataMapping).forEach(code => {
+          const idx = dataMapping[code].index;
+          const val = formatValue(d._raw[idx]);
+          const colorClass = ['***', '-', 'X'].includes(val) ? 'text-slate-300' : 'text-slate-600';
+          cells += `<td class="text-right font-mono ${colorClass}">${val}</td>`;
+        });
+        return `<tr class="hover:bg-slate-50 transition-colors">${cells}</tr>`;
+      }).join('');
+
+      updateCharts(plotData, total);
+      updatePyramid(total);
+    }
+
+    function updateCharts(plotData, total) {
+      const commonScales = {
+        x: {
+          offset: true,
+          ticks: { font: { size: 7 }, color: '#94a3b8' },
+          grid: { display: false }
+        },
+        y: {
+          ticks: { font: { size: 7 }, color: '#94a3b8' },
+          grid: { color: '#f1f5f9' }
+        }
+      };
+
+      const chartOpt = {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: commonScales
+      };
+
+      const labels = plotData.map(d => d.area.split(' ').pop());
+
+      draw('chart-future', 'line', {
+        labels: ['2030', '2040', '2050'],
+        datasets: [{
+          data: [total('f2030'), total('f2040'), total('f2050')],
+          borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.1)', fill: true, tension: 0.3, borderWidth: 2
+        }]
+      }, chartOpt);
+
+      draw('chart-gender', 'bar', {
+        labels: labels,
+        datasets: [
+          { label: '男', data: plotData.map(d => d.male), backgroundColor: '#3b82f6', borderRadius: 2 },
+          { label: '女', data: plotData.map(d => d.female), backgroundColor: '#f472b6', borderRadius: 2 }
+        ]
+      }, { ...chartOpt, plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 6, font: { size: 8 } } } } });
+
+      draw('chart-migration-bar', 'bar', {
+        labels: labels,
+        datasets: [
+          { label: '転入', data: plotData.map(d => d.migIn), backgroundColor: '#10b981', borderRadius: 2 },
+          { label: '転出', data: plotData.map(d => d.migOut), backgroundColor: '#f43f5e', borderRadius: 2 }
+        ]
+      }, { ...chartOpt, plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 6, font: { size: 8 } } } } });
+
+      draw('chart-medical-pie', 'doughnut', {
+        labels: ['病院', '診療所'],
+        datasets: [{ data: [total('hosp'), total('clinic')], backgroundColor: ['#f43f5e', '#10b981'], borderWidth: 1, borderColor: '#fff' }]
+      }, { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 6, font: { size: 8 } } } } });
+
+      draw('chart-mixed-pop-hholds', 'bar', {
+        labels: labels,
+        datasets: [
+          { label: '人口', data: plotData.map(d => d.pop), backgroundColor: 'rgba(6, 182, 212, 0.3)', borderRadius: 2, order: 2 },
+          { label: '世帯', data: plotData.map(d => d.hholds), borderColor: '#0891b2', backgroundColor: '#0891b2', type: 'line', tension: 0.1, borderWidth: 1.5, pointRadius: 1, order: 1 }
+        ]
+      }, { ...chartOpt, plugins: { legend: { display: true, labels: { boxWidth: 6, font: { size: 8 } } } } });
+
+      draw('chart-mixed-medical-home', 'bar', {
+        labels: labels,
+        datasets: [
+          { label: '施設数', data: plotData.map(d => d.hosp + d.clinic), backgroundColor: 'rgba(249, 115, 22, 0.4)', borderRadius: 2, order: 2 },
+          { label: '在所者', data: plotData.map(d => d.hYang + d.hKei + d.hYu), borderColor: '#ea580c', backgroundColor: '#ea580c', type: 'line', tension: 0.1, borderWidth: 1.5, pointRadius: 1, order: 1 }
+        ]
+      }, { ...chartOpt, plugins: { legend: { display: true, labels: { boxWidth: 6, font: { size: 8 } } } } });
+
+      draw('chart-gender-pie', 'pie', {
+        labels: ['男', '女'],
+        datasets: [{ data: [total('male'), total('female')], backgroundColor: ['#3b82f6', '#f472b6'], borderWidth: 1, borderColor: '#fff' }]
+      }, { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom', labels: { boxWidth: 8, font: { size: 8 } } } } });
+    }
+
+    function updatePyramid(total) {
+      const groups = [
+        { l: '80歳以上', m: total('m80'), f: total('f80'), c: 'bg-slate-700' },
+        { l: '70歳代', m: Math.max(0, total('m70') - total('m80')), f: Math.max(0, total('f70') - total('f80')), c: 'bg-slate-500' },
+        { l: '60歳代', m: Math.max(0, total('m60') - total('m70')), f: Math.max(0, total('f60') - total('f70')), c: 'bg-slate-400' },
+        { l: '40~50代', m: Math.max(0, total('m40') - total('m60')), f: Math.max(0, total('f40') - total('f60')), c: 'bg-slate-300' }
+      ];
+      const max = Math.max(...groups.map(g => Math.max(g.m, g.f))) || 1;
+      document.getElementById('pyramid-data').innerHTML = groups.map(g => `
+                <div class="space-y-1">
+                    <div class="flex justify-between text-[7px] font-bold text-slate-500">
+                        <span>${g.l}</span>
+                        <span class="font-mono text-slate-400">${g.m.toLocaleString()} / ${g.f.toLocaleString()}</span>
+                    </div>
+                    <div class="flex h-1.5 gap-px">
+                        <div class="flex-1 flex justify-end bg-slate-50 rounded-l overflow-hidden">
+                            <div class="${g.c.replace('bg-', 'bg-blue-')} h-full transition-all duration-500" style="width: ${(g.m / max * 100)}%"></div>
+                        </div>
+                        <div class="flex-1 flex justify-start bg-slate-50 rounded-r overflow-hidden">
+                            <div class="${g.c.replace('bg-', 'bg-rose-')} h-full transition-all duration-500" style="width: ${(g.f / max * 100)}%"></div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+    }
+
+    function draw(id, type, data, options) {
+      if (charts[id]) charts[id].destroy();
+      const ctx = document.getElementById(id).getContext('2d');
+      charts[id] = new Chart(ctx, { type, data, options });
+    }
+
+    function updateStatus(text, color) {
+      const dot = document.getElementById('status-dot');
+      const txt = document.getElementById('status-text');
+      txt.textContent = text;
+      dot.className = `w-1.5 h-1.5 rounded-full bg-${color}-500`;
+    }
+  </script>
+</body>
+
+</html>
