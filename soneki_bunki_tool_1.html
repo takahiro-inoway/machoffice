@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>損益分岐点計算ツール | BEP Interactive Tool</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    :root {
+      --bg-main: #ffffff;
+      --text-main: #1a1a1a;
+      --text-muted: #64748b;
+      --accent-blue: #2563eb;
+      --accent-light-blue: #eff6ff;
+      --border-color: #e2e8f0;
+      --card-bg: #f8fafc;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-main);
+      font-family: 'Noto Sans JP', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      margin: 0;
+    }
+
+    [v-cloak] {
+      display: none;
+    }
+
+    #app {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    /* Container Style */
+    .main-panel {
+      background: var(--bg-main);
+      border: 1px solid var(--border-color);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+      border-radius: 16px;
+      padding: 40px;
+      width: 100%;
+      max-width: 800px;
+      position: relative;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5 {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    /* Buttons */
+    .btn-custom {
+      background-color: var(--accent-blue);
+      color: white;
+      border: none;
+      padding: 12px 32px;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .btn-custom:hover {
+      background-color: #1d4ed8;
+      transform: translateY(-1px);
+      color: white;
+    }
+
+    .btn-custom:disabled {
+      background-color: var(--border-color);
+      color: var(--text-muted);
+    }
+
+    /* Inputs */
+    .form-control-custom {
+      background: var(--card-bg);
+      border: 2px solid var(--border-color);
+      color: var(--text-main);
+      border-radius: 8px;
+      padding: 15px;
+      font-size: 1.2rem;
+      text-align: center;
+      transition: border-color 0.2s;
+    }
+
+    .form-control-custom:focus {
+      background: #ffffff;
+      border-color: var(--accent-blue);
+      color: var(--text-main);
+      box-shadow: none;
+    }
+
+    /* Animations */
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.4s, transform 0.4s;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    /* Result Cards */
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+      height: 100%;
+    }
+
+    .label-small {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      margin-bottom: 5px;
+    }
+
+    .value-large {
+      font-size: 1.5rem;
+      font-weight: bold;
+      color: var(--text-main);
+    }
+
+    .tip-box {
+      background: var(--accent-light-blue);
+      border-left: 4px solid var(--accent-blue);
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: var(--text-main);
+    }
+
+    /* Chart Area */
+    .chart-container {
+      position: relative;
+      min-height: 400px;
+      height: 400px;
+      margin: 30px 0;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 15px;
+    }
+
+    /* Loading Spinner */
+    .loader {
+      width: 48px;
+      height: 48px;
+      border: 5px solid var(--border-color);
+      border-bottom-color: var(--accent-blue);
+      border-radius: 50%;
+      display: inline-block;
+      box-sizing: border-box;
+      animation: rotation 1s linear infinite;
+    }
+
+    .point-icon {
+      font-size: 80px;
+      padding: 24px;;
+    }
+
+    @keyframes rotation {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app">
+    <div class="main-panel text-center">
+
+      <!-- Step 1: Start -->
+      <transition name="fade" mode="out-in">
+        <div v-if="step === 1" key="step1">
+          <div class="point-icon">💹🍔？</div>
+          <h1 class="mb-4">損益分岐点計算ツール</h1>
+          <p class="mb-5 text-muted">あなたのビジネスが「いつ利益に変わるか」を、<br>シンプルなステップでシミュレーションしましょう。</p>
+          <button @click="nextStep" class="btn btn-custom px-5">計算を開始する</button>
+        </div>
+
+        <!-- Step 2: Price / Sales -->
+        <div v-else-if="step === 2" key="step2" v-cloak>
+          <div class="point-icon">🍔</div>
+          <h2 class="mb-4">1. 売上高（または単価）を入力</h2>
+          <div class="mb-4">
+            <input type="number" v-model.number="price" class="form-control form-control-custom w-75 mx-auto"
+              placeholder="例: 10000" autofocus>
+          </div>
+          <div class="text-muted small mb-4">
+            <p>商品の販売価格、もしくは月間の総売上高を入力してください。</p>
+          </div>
+          <button @click="nextStep" class="btn btn-custom" :disabled="!price">次へ進む</button>
+        </div>
+
+        <!-- Step 3: Variable Cost -->
+        <div v-else-if="step === 3" key="step3" v-cloak>
+          <div class="point-icon">🐮🥚🧀🧻</div>
+          <h2 class="mb-4">2. 変動費を入力</h2>
+          <div class="mb-4">
+            <input type="number" v-model.number="variableCost" class="form-control form-control-custom w-75 mx-auto"
+              placeholder="例: 2500" autofocus>
+          </div>
+          <div class="tip-box text-start mx-auto w-100">
+            <strong class="d-block mb-1">変動費の例：</strong>
+            <ul class="mb-0">
+              <li>商品の仕入れ原価・原材料費</li>
+              <li>販売手数料、梱包材・送料</li>
+              <li>外注加工費など</li>
+              <li>※前の画面で単価を入力した場合は1商品当たりの変動費を入力</li>
+            </ul>
+          </div>
+          <button @click="nextStep" class="btn btn-custom mt-4" :disabled="variableCost === null">次へ進む</button>
+        </div>
+
+        <!-- Step 4: Fixed Cost -->
+        <div v-else-if="step === 4" key="step4" v-cloak>
+          <div class="point-icon">👩‍🍳🏪🚰🔌</div>
+          <h2 class="mb-4">3. 固定費を入力</h2>
+          <div class="mb-4">
+            <input type="number" v-model.number="fixedCost" class="form-control form-control-custom w-75 mx-auto"
+              placeholder="例: 380000" autofocus>
+          </div>
+          <div class="tip-box text-start mx-auto w-100">
+            <strong class="d-block mb-1">固定費の例：</strong>
+            <ul class="mb-0">
+              <li>事務所や店舗の家賃</li>
+              <li>正社員の給与（月給）</li>
+              <li>広告宣伝費、水道光熱費の基本料金</li>
+            </ul>
+          </div>
+          <button @click="nextStep" class="btn btn-custom mt-4" :disabled="fixedCost === null">計算を実行</button>
+        </div>
+
+        <!-- Step 5: Loading -->
+        <div v-else-if="step === 5" key="step5" v-cloak>
+          <span class="loader mb-4"></span>
+          <h2>解析中...</h2>
+          <p class="text-muted">データを集計しています</p>
+        </div>
+
+        <!-- Step 6: Result -->
+        <div v-else-if="step === 6" key="step6" class="text-start" v-cloak>
+          <h2 class="text-center mb-4">計算結果</h2>
+
+          <div class="row g-3 mb-3">
+            <div class="col-md-6">
+              <div class="stat-card">
+                <div class="label-small">限界利益 (売上 - 変動費)</div>
+                <div class="value-large">¥ {{ formatNumber(marginalProfit) }}</div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="stat-card">
+                <div class="label-small">限界利益率</div>
+                <div class="value-large">{{ marginalProfitRate.toFixed(1) }} %</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="row g-3">
+            <div class="col-md-6">
+              <div class="stat-card text-center"
+                style="border: 2px solid var(--accent-blue); background: var(--accent-light-blue);">
+                <div class="label-small">損益分岐点 (必要売上高)</div>
+                <div class="value-large" style="font-size: 1.8rem; color: var(--accent-blue);">¥ {{
+                  formatNumber(breakEvenSales) }}</div>
+                <div class="text-muted small mt-2">
+                  目標とすべき最小の売上金額です
+                </div>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <div class="stat-card text-center"
+                style="border: 2px solid var(--accent-blue); background: var(--accent-light-blue);">
+                <div class="label-small">損益分岐販売数 (必要数)</div>
+                <div class="value-large" style="font-size: 1.8rem; color: var(--accent-blue);">{{
+                  formatFloat(breakEvenCount, 2) }} <span style="font-size: 1rem;">単位</span></div>
+                <div class="text-muted small mt-2">
+                  利益を出すために必要な最小の数量です
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Height Fixed Container -->
+          <div class="chart-container">
+            <canvas id="bepChart"></canvas>
+          </div>
+
+          <hr class="my-4">
+
+          <h4 class="mb-3">数値を調整して再計算</h4>
+          <div class="row g-3 mb-4">
+            <div class="col-md-4">
+              <label class="small text-muted">売上(単価)</label>
+              <input type="number" v-model.number="price" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="small text-muted">変動費</label>
+              <input type="number" v-model.number="variableCost" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="small text-muted">固定費</label>
+              <input type="number" v-model.number="fixedCost" class="form-control">
+            </div>
+            <div class="col-12 mt-3">
+              <button @click="recalculate" class="btn btn-outline-primary w-100">数値を更新する</button>
+            </div>
+          </div>
+
+          <div class="text-center mt-5">
+            <button @click="reset" class="btn btn-link text-muted text-decoration-none">← 最初からやり直す</button>
+          </div>
+        </div>
+      </transition>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@mojs/core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+  <script>
+    const { createApp, ref, computed, nextTick } = Vue;
+
+    createApp({
+      setup() {
+        const step = ref(1);
+        const price = ref(null);
+        const variableCost = ref(null);
+        const fixedCost = ref(null);
+        let myChart = null;
+        let retryCount = 0;
+
+        const marginalProfit = computed(() => (price.value || 0) - (variableCost.value || 0));
+        const marginalProfitRate = computed(() => {
+          if (!price.value) return 0;
+          return (marginalProfit.value / price.value) * 100;
+        });
+        const breakEvenSales = computed(() => {
+          const rate = marginalProfitRate.value / 100;
+          if (rate <= 0) return 0;
+          return Math.round(fixedCost.value / rate);
+        });
+        const breakEvenCount = computed(() => {
+          if (marginalProfit.value <= 0) return 0;
+          return fixedCost.value / marginalProfit.value;
+        });
+
+        const formatNumber = (num) => {
+          return new Intl.NumberFormat().format(num);
+        };
+
+        const formatFloat = (num, digits) => {
+          if (isNaN(num)) return "0";
+          return num.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+        };
+
+        const burstAnimation = (x, y) => {
+          if (typeof mojs !== 'undefined') {
+            try {
+              new mojs.Burst({
+                left: x, top: y,
+                radius: { 0: 60 },
+                count: 8,
+                children: {
+                  shape: 'circle',
+                  fill: '#2563eb',
+                  duration: 1000
+                }
+              }).play();
+            } catch (e) { }
+          }
+        };
+
+        const nextStep = (event) => {
+          const x = event ? event.clientX : window.innerWidth / 2;
+          const y = event ? event.clientY : window.innerHeight / 2;
+          burstAnimation(x, y);
+
+          if (step.value === 4) {
+            step.value = 5;
+            setTimeout(() => {
+              step.value = 6;
+              retryCount = 0;
+              requestRender();
+            }, 1500);
+          } else {
+            step.value++;
+          }
+        };
+
+        const requestRender = () => {
+          nextTick(() => {
+            setTimeout(() => {
+              const success = renderChart();
+              if (!success && retryCount < 10) {
+                retryCount++;
+                requestRender();
+              }
+            }, 150);
+          });
+        };
+
+        const recalculate = (event) => {
+          renderChart();
+          const x = event ? event.clientX : window.innerWidth / 2;
+          const y = event ? event.clientY : window.innerHeight / 2;
+          burstAnimation(x, y);
+        };
+
+        const reset = () => {
+          step.value = 1;
+          price.value = null;
+          variableCost.value = null;
+          fixedCost.value = null;
+          if (myChart) myChart.destroy();
+          myChart = null;
+        };
+
+        const renderChart = () => {
+          const ctx = document.getElementById('bepChart');
+          if (!ctx) return false;
+
+          if (myChart) myChart.destroy();
+
+          const labels = [];
+          const salesData = [];
+          const totalCostData = [];
+          const fixedCostData = [];
+
+          const countBase = breakEvenCount.value > 0 ? breakEvenCount.value : 100;
+          const maxRange = Math.max(countBase * 2, 10);
+          const stepSize = maxRange / 10;
+
+          for (let i = 0; i <= maxRange; i += stepSize) {
+            const count = Math.round(i);
+            labels.push(count + '個');
+            salesData.push(count * (price.value || 0));
+            totalCostData.push((fixedCost.value || 0) + (count * (variableCost.value || 0)));
+            fixedCostData.push(fixedCost.value || 0);
+          }
+
+          myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: labels,
+              datasets: [
+                {
+                  label: '売上高',
+                  data: salesData,
+                  borderColor: '#2563eb',
+                  backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                  borderWidth: 3,
+                  fill: true,
+                  tension: 0.1
+                },
+                {
+                  label: '総費用',
+                  data: totalCostData,
+                  borderColor: '#dc2626',
+                  borderDash: [5, 5],
+                  borderWidth: 2,
+                  fill: false,
+                  tension: 0.1
+                },
+                {
+                  label: '固定費',
+                  data: fixedCostData,
+                  borderColor: '#1a1a1a',
+                  borderDash: [2, 2],
+                  borderWidth: 1,
+                  pointRadius: 0,
+                  fill: false
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              animation: { duration: 800 },
+              plugins: {
+                legend: {
+                  labels: { color: '#1a1a1a' }
+                },
+                tooltip: {
+                  backgroundColor: '#ffffff',
+                  titleColor: '#1a1a1a',
+                  bodyColor: '#1a1a1a',
+                  borderColor: '#e2e8f0',
+                  borderWidth: 1
+                }
+              },
+              scales: {
+                y: {
+                  ticks: {
+                    color: '#64748b',
+                    callback: function (value) { return '¥' + formatNumber(value); }
+                  },
+                  grid: { color: '#f1f5f9' }
+                },
+                x: {
+                  ticks: { color: '#64748b' },
+                  grid: { display: false }
+                }
+              }
+            }
+          });
+          return true;
+        };
+
+        return {
+          step, price, variableCost, fixedCost,
+          marginalProfit, marginalProfitRate, breakEvenSales, breakEvenCount,
+          nextStep, formatNumber, formatFloat, recalculate, reset
+        };
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+
+</html>
