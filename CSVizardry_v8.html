@@ -145,14 +145,29 @@
       z-index: 100;
     }
 
-    .quizFeedback {
+    .quizFeedback,
+    .hpbar,
+    .statusbar {
       position: absolute;
       width: 100%;
-      top: 80%;
       display: flex;
       align-items: center;
       justify-content: center;
+    }
+
+    .quizFeedback {
+      top: 5%;
+      z-index: 103;
+    }
+
+    .hpbar {
+      top: 95%;
       z-index: 101;
+    }
+
+    .statusbar {
+      top: 85%;
+      z-index: 102;
     }
 
     .enemy-death {
@@ -364,6 +379,31 @@
             </p>
           </div>
 
+          <!-- HPインジケーターバー -->
+          <div class="hpbar">
+            <div class="w-full max-w-[300px] mx-auto">
+              <div class="w-full h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden p-0.5">
+                <div class="h-full rounded-full transition-all duration-500 ease-out"
+                  :style="{ width: player.hp + '%', backgroundColor: hpColor }"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HPとゴールドとマナの表示エリア -->
+          <div class="statusbar">
+            <div class="flex flex justify-center gap-4 mb-1 text-xs font-mono font-bold tracking-widest text-gray-300">
+              <div class="flex items-center gap-1">
+                <span class="text-white-500">HP:</span> {{ player.hp }}
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-yellow-500">GOLD</span> × {{ player.gold }}
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-blue-400">MANA</span> × {{ player.mana }}
+              </div>
+            </div>
+          </div>
+
           <template v-if="view">
             <!-- 2マス先 -->
             <div v-if="view.front2 === 0" class="wall wall-front-2"></div>
@@ -382,29 +422,8 @@
             <div v-if="view.right1 === 0" class="wall wall-side-right-1"></div>
           </template>
         </div>
-      </div>
 
-      <!-- HPインジケーターバー -->
-      <div class="w-full max-w-[300px] mx-auto mb-1">
-        <div class="w-full h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden p-0.5">
-          <div class="h-full rounded-full transition-all duration-500 ease-out"
-            :style="{ width: player.hp + '%', backgroundColor: hpColor }"></div>
-        </div>
       </div>
-
-      <!-- ゴールドとマナの表示エリア -->
-      <div class="flex justify-center gap-4 mb-1 text-xs font-mono font-bold tracking-widest text-gray-300">
-        <div class="flex items-center gap-1">
-          <span class="text-white-500">HP:</span> {{ player.hp }}
-        </div>
-        <div class="flex items-center gap-1">
-          <span class="text-yellow-500">GOLD</span> × {{ player.gold }}
-        </div>
-        <div class="flex items-center gap-1">
-          <span class="text-blue-400">MANA</span> × {{ player.mana }}
-        </div>
-      </div>
-
 
       <!-- コントローラー -->
       <div class="flex justify-center gap-2" v-if="gameState === 'play'">
@@ -493,7 +512,7 @@
       <!-- マップ表示エリア -->
       <div v-if="gameState === 'play'" class="flex flex-col items-center">
 
-        <div class="p-3 bg-gray-800 rounded-lg border border-gray-700 max-w-[280px]">
+        <div class="p-1 bg-gray-800 rounded-lg border border-gray-700">
           <div v-if="map && map.length > 0 && hasMap" class="w-full">
             <div class="grid gap-px bg-gray-700 p-px rounded overflow-hidden mx-auto mb-2"
               :style="`grid-template-columns: repeat(${map[0].length}, 1fr)`">
@@ -549,7 +568,7 @@
 
     <!-- 階層移動アニメーション -->
     <transition name="fade">
-      <div v-if="isChangingFloor" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[100]">
+      <div v-if="isChangingFloor" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[900]">
         <div class="text-3xl font-serif italic tracking-widest animate-pulse text-white mb-4">
           Descending...
         </div>
