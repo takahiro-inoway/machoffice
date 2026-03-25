@@ -16,6 +16,13 @@
       -webkit-user-select: none;
     }
 
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    span,
+    div,
     button,
     .dungeon-view,
     .grid button,
@@ -463,7 +470,7 @@
               Battle Encounter</div>
             <p v-if="quizFeedback" class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">{{
               quizFeedback }}</p>
-            <p class="text-sm mb-2 leading-relaxed font-bold pb-2 text-white">{{
+            <p class="text-sm mb-2 leading-relaxed font-bold text-white">{{
               currentQuiz.question }}</p>
             <div class="grid grid-cols-1 gap-2">
               <button v-for="(choice, idx) in currentQuiz.choices" :key="idx" @click="answerQuiz(idx + 1)"
