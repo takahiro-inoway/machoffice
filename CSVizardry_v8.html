@@ -145,6 +145,16 @@
       z-index: 100;
     }
 
+    .quizFeedback {
+      position: absolute;
+      width: 100%;
+      top: 80%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 101;
+    }
+
     .enemy-death {
       animation: enemy-death 0.6s ease-out forwards !important;
     }
@@ -348,6 +358,11 @@
 
           <!-- クイズ中の敵アニメーション演出 -->
           <div v-if="gameState === 'quiz'" class="enemy-battle-anim" :class="{ 'enemy-death': isEnemyDying }">💀</div>
+          <div v-if="gameState === 'quiz' && quizFeedback" class="quizFeedback">
+            <p class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">
+              {{quizFeedback }}
+            </p>
+          </div>
 
           <template v-if="view">
             <!-- 2マス先 -->
@@ -468,8 +483,6 @@
             <div
               class="text-red-600 font-bold mb-1 text-xs tracking-[0.2em] animate-pulse text-center uppercase text-white">
               Battle Encounter</div>
-            <p v-if="quizFeedback" class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">{{
-              quizFeedback }}</p>
             <p class="text-sm mb-2 leading-relaxed font-bold text-white">{{
               currentQuiz.question }}</p>
             <div class="grid grid-cols-1 gap-2">
