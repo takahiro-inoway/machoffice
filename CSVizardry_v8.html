@@ -9,6 +9,13 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     /* モバイルでのダブルタップズームを防止 */
+    * {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
     button,
     .dungeon-view,
     .grid button,
@@ -324,16 +331,8 @@
 
     <!-- 2. メインゲーム画面 -->
     <div v-if="gameState === 'play' || gameState === 'quiz'">
-      <div class="flex justify-between items-end mb-2 px-1">
-        <h2 class="text-1xl font-serif font-bold italic text-gray-400">B{{ floor }}F</h2>
-        <div class="text-right">
-          <div class="text-[10px] font-mono text-gray-500 uppercase">POS: {{ player.x }},{{ player.y }} / {{
-            directionName }}</div>
-        </div>
-      </div>
-
       <!-- 3Dビューエリア -->
-      <div class="flex justify-center mb-4 relative">
+      <div class="flex justify-center mb-2 relative">
         <div class="dungeon-view shadow-[0_0_50px_rgba(0,0,0,1)]">
           <!-- ① ダメージ演出オーバーレイ -->
           <div v-if="isDamaged" class="damage-overlay"></div>
@@ -364,11 +363,7 @@
       </div>
 
       <!-- HPインジケーターバー -->
-      <div class="w-full max-w-[300px] mx-auto mb-2">
-        <div class="flex justify-between text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-tighter">
-          <span>Vitals</span>
-          <span>{{ player.hp }}%</span>
-        </div>
+      <div class="w-full max-w-[300px] mx-auto mb-1">
         <div class="w-full h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden p-0.5">
           <div class="h-full rounded-full transition-all duration-500 ease-out"
             :style="{ width: player.hp + '%', backgroundColor: hpColor }"></div>
@@ -376,7 +371,10 @@
       </div>
 
       <!-- ゴールドとマナの表示エリア -->
-      <div class="flex justify-center gap-4 mb-4 text-xs font-mono font-bold tracking-widest text-gray-300">
+      <div class="flex justify-center gap-4 mb-1 text-xs font-mono font-bold tracking-widest text-gray-300">
+        <div class="flex items-center gap-1">
+          <span class="text-white-500">HP:</span> {{ player.hp }}
+        </div>
         <div class="flex items-center gap-1">
           <span class="text-yellow-500">GOLD</span> × {{ player.gold }}
         </div>
@@ -404,14 +402,14 @@
         <div class="grid grid-cols-3 gap-2 max-w-[220px] mx-auto">
           <div></div>
           <button @click="moveForward"
-            class="bg-gray-800 hover:bg-gray-700 p-5 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↑</button>
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↑</button>
           <div></div>
           <button @click="turnLeft"
-            class="bg-gray-800 hover:bg-gray-700 p-5 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">←</button>
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">←</button>
           <button @click="moveBackward"
-            class="bg-gray-800 hover:bg-gray-700 p-5 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↓</button>
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↓</button>
           <button @click="turnRight"
-            class="bg-gray-800 hover:bg-gray-700 p-5 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">→</button>
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">→</button>
         </div>
         <div style="width: 20%;">
           <!-- アビリティ表示要素 -->
@@ -424,6 +422,11 @@
               class="flex-1 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/50 py-2 px-1 rounded text-[10px] font-bold tracking-tighter transition active:scale-95">
               ✨ 治療 <span class="text-blue-400"> / 30</span>
             </button>
+            <h2 class="text-1xl font-serif font-bold italic text-gray-400">B{{ floor }}F</h2>
+            <div class="text-right">
+              <div class="text-[10px] font-mono text-gray-500 uppercase">POS: {{ player.x }},{{ player.y }} / {{
+                directionName }}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -448,7 +451,8 @@
       </div>
 
       <!-- ミニマップ 兼 クイズエリア -->
-      <div class="mt-2 p-4 bg-gray-800 rounded-lg border border-gray-700 relative min-h-[440px] flex flex-col items-center">
+      <div
+        class="mt-2 p-4 bg-gray-800 rounded-lg border border-gray-700 relative min-h-[380px] flex flex-col items-center">
 
         <!-- クイズオーバーレイ -->
         <transition name="fade">
@@ -457,6 +461,8 @@
             <div
               class="text-red-600 font-bold mb-1 text-xs tracking-[0.2em] animate-pulse text-center uppercase text-white">
               Battle Encounter</div>
+            <p v-if="quizFeedback" class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">{{
+              quizFeedback }}</p>
             <p class="text-sm mb-2 leading-relaxed font-bold pb-2 text-white">{{
               currentQuiz.question }}</p>
             <div class="grid grid-cols-1 gap-2">
@@ -465,24 +471,11 @@
                 <span class="text-red-500 mr-2 font-bold">{{ idx + 1 }}.</span> {{ choice }}
               </button>
             </div>
-            <p v-if="quizFeedback" class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">{{
-              quizFeedback }}</p>
           </div>
         </transition>
 
         <!-- ミニマップ本体 -->
         <div v-if="map && map.length > 0" class="max-w-[280px]">
-          <div class="flex justify-between items-center mb-2 text-[10px]">
-            <h2 class="uppercase text-gray-500 font-bold tracking-widest">Auto Map</h2>
-            <div class="flex gap-3">
-              <span class="text-orange-500 flex items-center"><span
-                  class="w-2 h-2 bg-orange-900 mr-1 rounded-sm"></span>階段</span>
-              <span class="text-red-500 flex items-center"><span
-                  class="w-2 h-2 bg-red-900 mr-1 rounded-full"></span>敵</span>
-              <span class="text-green-500 flex items-center"><span
-                  class="w-2 h-2 bg-green-900 mr-1 rounded-sm"></span>？</span>
-            </div>
-          </div>
 
           <!-- マップ表示/非表示の切り替え -->
           <div v-if="hasMap" class="grid gap-px bg-gray-700 p-px rounded overflow-hidden"
@@ -500,6 +493,19 @@
               </div>
             </template>
           </div>
+
+          <div v-if="hasMap" class="flex justify-between items-center mb-2 text-[10px]">
+            <h2 class="uppercase text-gray-500 font-bold tracking-widest">Auto Map</h2>
+            <div class="flex gap-3">
+              <span class="text-orange-500 flex items-center"><span
+                  class="w-2 h-2 bg-orange-900 mr-1 rounded-sm"></span>階段</span>
+              <span class="text-red-500 flex items-center"><span
+                  class="w-2 h-2 bg-red-900 mr-1 rounded-full"></span>敵</span>
+              <span class="text-green-500 flex items-center"><span
+                  class="w-2 h-2 bg-green-900 mr-1 rounded-sm"></span>？</span>
+            </div>
+          </div>
+
           <!-- 非表示時のプレースホルダー（min-height維持用） -->
           <div v-else class="flex items-center justify-center border-2 border-dashed border-gray-700 rounded-lg"
             style="height: 120px;">
