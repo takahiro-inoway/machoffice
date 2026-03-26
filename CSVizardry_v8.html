@@ -512,8 +512,8 @@
       <!-- マップ表示エリア -->
       <div v-if="gameState === 'play'" class="flex flex-col items-center">
 
-        <div class="p-1 bg-gray-800 rounded-lg border border-gray-700">
-          <div v-if="map && map.length > 0 && hasMap" class="w-full">
+        <div class="p-1 bg-gray-800 rounded-lg border border-gray-700 min-w-[280px]">
+          <div v-if="map && map.length > 0 && hasMap" class="">
             <div class="grid gap-px bg-gray-700 p-px rounded overflow-hidden mx-auto mb-2"
               :style="`grid-template-columns: repeat(${map[0].length}, 1fr)`">
               <template v-for="(row, y) in map" :key="y">
