@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Quiz Dungeon Crawler</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* モバイルでのダブルタップズームを防止 */
+    * {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    span,
+    div,
+    button,
+    .dungeon-view,
+    .grid button,
+    .max-w-md {
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    .dungeon-view {
+      width: 300px;
+      height: 200px;
+      background-color: #000;
+      position: relative;
+      overflow: hidden;
+      border: 2px solid #555;
+    }
+
+    .wall {
+      position: absolute;
+      background-color: #222;
+      border: 1px solid #aaa;
+    }
+
+    .stairs {
+      position: absolute;
+      background-color: #442200;
+      border: 2px dashed #ffaa00;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #ffaa00;
+    }
+
+    .item-map {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      z-index: 9;
+      filter: drop-shadow(0 0 5px #00ff00);
+    }
+
+    .enemy {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      z-index: 10;
+      filter: drop-shadow(0 0 5px red);
+    }
+
+    /* 敵のフローティングアニメーション */
+    @keyframes float {
+      0% {
+        transform: translateY(0px);
+        filter: drop-shadow(0 0 5px red);
+      }
+
+      50% {
+        transform: translateY(-15px);
+        filter: drop-shadow(0 0 20px red);
+      }
+
+      100% {
+        transform: translateY(0px);
+        filter: drop-shadow(0 0 5px red);
+      }
+    }
+
+    /* 敵が倒れる時のアニメーション */
+    @keyframes enemy-death {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+        filter: brightness(1) drop-shadow(0 0 5px red);
+      }
+
+      20% {
+        opacity: 0.5;
+        transform: scale(1.1);
+        filter: brightness(5);
+      }
+
+      40% {
+        opacity: 1;
+        transform: scale(1.2);
+      }
+
+      60% {
+        opacity: 0.5;
+        transform: scale(1.3);
+        filter: brightness(5);
+      }
+
+      100% {
+        opacity: 0;
+        transform: scale(1.5);
+        filter: brightness(10);
+      }
+    }
+
+    .enemy-battle-anim {
+      animation: float 2s ease-in-out infinite;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      margin-left: -50px;
+      margin-top: -50px;
+      width: 100px;
+      height: 100px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 80px;
+      z-index: 100;
+    }
+
+    .quizFeedback,
+    .hpbar,
+    .statusbar {
+      position: absolute;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .quizFeedback {
+      top: 5%;
+      z-index: 103;
+    }
+
+    .hpbar {
+      top: 95%;
+      z-index: 101;
+    }
+
+    .statusbar {
+      top: 85%;
+      z-index: 102;
+    }
+
+    .enemy-death {
+      animation: enemy-death 0.4s ease-out forwards !important;
+    }
+
+    /* ダメージ赤点滅演出 */
+    @keyframes flash-red {
+
+      0%,
+      100% {
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    .damage-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: #ff0000;
+      z-index: 150;
+      pointer-events: none;
+      animation: flash-red 0.2s ease-in-out 2;
+    }
+
+    /* アビリティ青点滅演出 */
+    @keyframes flash-blue {
+
+      0%,
+      100% {
+        opacity: 0;
+      }
+
+      50% {
+        opacity: 0.6;
+      }
+    }
+
+    .ability-overlay {
+      position: absolute;
+      inset: 0;
+      background-color: #0088ff;
+      z-index: 150;
+      pointer-events: none;
+      animation: flash-blue 0.2s ease-in-out 2;
+    }
+
+    /* 疑似3D投影位置 */
+    .wall-front-1 {
+      width: 100px;
+      height: 100px;
+      left: 100px;
+      top: 50px;
+      background-color: #333;
+    }
+
+    .wall-front-2 {
+      width: 40px;
+      height: 40px;
+      left: 130px;
+      top: 80px;
+      background-color: #111;
+    }
+
+    .wall-side-left-1 {
+      width: 100px;
+      height: 200px;
+      left: 0;
+      top: 0;
+      clip-path: polygon(0 0, 100% 25%, 100% 75%, 0 100%);
+    }
+
+    .wall-side-right-1 {
+      width: 100px;
+      height: 200px;
+      right: 0;
+      top: 0;
+      clip-path: polygon(0 25%, 100% 0, 100% 100%, 0 75%);
+    }
+
+    .wall-side-left-2 {
+      width: 30px;
+      height: 100px;
+      left: 100px;
+      top: 50px;
+      clip-path: polygon(0 0, 100% 30%, 100% 70%, 0 100%);
+      background-color: #1a1a1a;
+    }
+
+    .wall-side-right-2 {
+      width: 30px;
+      height: 100px;
+      right: 100px;
+      top: 50px;
+      clip-path: polygon(0 30%, 100% 0, 100% 100%, 0 70%);
+      background-color: #1a1a1a;
+    }
+
+    .stairs-front-1 {
+      width: 60px;
+      height: 20px;
+      left: 120px;
+      top: 130px;
+      font-size: 12px;
+    }
+
+    .stairs-front-2 {
+      width: 30px;
+      height: 10px;
+      left: 135px;
+      top: 110px;
+      font-size: 8px;
+    }
+
+    .enemy-front-1 {
+      width: 80px;
+      height: 80px;
+      left: 110px;
+      top: 60px;
+      font-size: 40px;
+    }
+
+    .enemy-front-2 {
+      width: 40px;
+      height: 40px;
+      left: 130px;
+      top: 80px;
+      font-size: 20px;
+    }
+
+    .item-front-1 {
+      width: 60px;
+      height: 60px;
+      left: 120px;
+      top: 80px;
+      font-size: 30px;
+    }
+
+    .item-front-2 {
+      width: 30px;
+      height: 30px;
+      left: 135px;
+      top: 90px;
+      font-size: 15px;
+    }
+
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.3s;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+  </style>
+</head>
+
+<body class="bg-gray-900 text-white flex flex-col items-center min-h-screen p-4 overflow-hidden">
+
+  <div id="app" class="max-w-md w-full">
+    <!-- 1. タイトル/CSVアップロード画面 -->
+    <div v-if="gameState === 'title'"
+      class="bg-gray-800 p-8 rounded-lg border-2 border-gray-600 text-center shadow-2xl">
+      <h1 class="text-3xl font-bold mb-6 text-yellow-500 tracking-tighter">QUIZ DUNGEON</h1>
+
+      <div class="mb-6 p-4 bg-gray-900 rounded border border-gray-700 text-left">
+        <h2 class="text-xs font-bold text-gray-500 mb-2 uppercase">CSV形式のルール</h2>
+        <ul class="text-[10px] text-gray-400 space-y-1">
+          <li>・1列目: 問題文</li>
+          <li>・2列目: 正解の番号 (1〜5)</li>
+          <li>・3列目〜7列目: 選択肢 (最大5択)</li>
+          <li>・1行目は見出しとしてスキップされます</li>
+        </ul>
+      </div>
+
+      <label class="block mb-6">
+        <input type="file" accept=".csv" @change="handleFileUpload"
+          class="block w-full text-xs text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-yellow-600 file:text-white hover:file:bg-yellow-500 cursor-pointer" />
+      </label>
+
+      <button v-if="quizData.length > 0" @click="startGame"
+        class="w-full bg-green-600 hover:bg-green-500 text-white font-bold py-3 px-6 rounded shadow-lg transition duration-200">
+        冒険を開始する ({{ quizData.length }}問ロード済)
+      </button>
+      <div v-else class="text-xs text-red-500 animate-pulse">
+        ※クイズCSVを選択してください
+      </div>
+    </div>
+
+    <!-- 2. メインゲーム画面 -->
+    <div v-if="['play', 'quiz', 'result', 'wait'].includes(gameState)">
+      <!-- 3Dビューエリア -->
+      <div class="flex justify-center mb-2 relative">
+        <div class="dungeon-view shadow-[0_0_50px_rgba(0,0,0,1)]">
+          <!-- ① ダメージ演出オーバーレイ -->
+          <div v-if="isDamaged" class="damage-overlay"></div>
+          <!-- アビリティ演出オーバーレイ -->
+          <div v-if="isAbilityActive" class="ability-overlay"></div>
+
+          <!-- クイズ中の敵アニメーション演出 -->
+          <div v-if="gameState === 'quiz'" class="enemy-battle-anim" :class="{ 'enemy-death': isEnemyDying }">💀</div>
+          <div v-if="gameState === 'quiz' && quizFeedback" class="quizFeedback">
+            <p class="mt-2 text-center font-bold text-yellow-500 text-sm animate-bounce">
+              {{quizFeedback }}
+            </p>
+          </div>
+
+          <!-- HPインジケーターバー -->
+          <div class="hpbar">
+            <div class="w-full max-w-[300px] mx-auto">
+              <div class="w-full h-3 bg-gray-800 rounded-full border border-gray-700 overflow-hidden p-0.5">
+                <div class="h-full rounded-full transition-all duration-500 ease-out"
+                  :style="{ width: player.hp + '%', backgroundColor: hpColor }"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- HPとゴールドとマナの表示エリア -->
+          <div class="statusbar">
+            <div class="flex flex justify-center gap-4 mb-1 text-xs font-mono font-bold tracking-widest text-gray-300">
+              <div class="flex items-center gap-1">
+                <span class="text-white-500">HP:</span> {{ player.hp }}
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-yellow-500">GOLD</span> × {{ player.gold }}
+              </div>
+              <div class="flex items-center gap-1">
+                <span class="text-blue-400">MANA</span> × {{ player.mana }}
+              </div>
+            </div>
+          </div>
+
+          <template v-if="view">
+            <!-- 2マス先 -->
+            <div v-if="view.front2 === 0" class="wall wall-front-2"></div>
+            <div v-if="view.front2 === 2" class="stairs stairs-front-2">階段</div>
+            <div v-if="view.front2 === 3" class="enemy enemy-front-2">💀</div>
+            <div v-if="view.front2 === 4" class="item-map item-front-2">📜</div>
+            <div v-if="view.left2 === 0" class="wall wall-side-left-2"></div>
+            <div v-if="view.right2 === 0" class="wall wall-side-right-2"></div>
+
+            <!-- 1マス先 -->
+            <div v-if="view.front1 === 0" class="wall wall-front-1"></div>
+            <div v-if="view.front1 === 2" class="stairs stairs-front-1">階段</div>
+            <div v-if="view.front1 === 3" class="enemy enemy-front-1">💀</div>
+            <div v-if="view.front1 === 4" class="item-map item-front-1">📜</div>
+            <div v-if="view.left1 === 0" class="wall wall-side-left-1"></div>
+            <div v-if="view.right1 === 0" class="wall wall-side-right-1"></div>
+          </template>
+        </div>
+
+      </div>
+
+      <!-- コントローラー -->
+      <div class="flex justify-center gap-2" v-if="gameState === 'play'">
+        <div style="width: 20%;">
+          <!-- 探索ヒント表示エリア (複数メッセージ対応) -->
+          <div v-if="gameState === 'play' && (isItemNearby || isStairsNearby)" class="mb-2 flex flex-col gap-1">
+            <div v-if="isItemNearby"
+              class="text-center py-1 bg-green-900/30 border border-green-700/50 rounded animate-pulse">
+              <span class="text-[10px] font-bold text-green-400 tracking-widest">近くに何かありそう･･･</span>
+            </div>
+            <div v-if="isStairsNearby"
+              class="text-center py-1 bg-blue-900/30 border border-blue-700/50 rounded animate-pulse">
+              <span class="text-[10px] font-bold text-blue-400 tracking-widest">風の音がする･･･</span>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-3 gap-2 max-w-[220px] mx-auto">
+          <div></div>
+          <button @click="moveForward"
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↑</button>
+          <div></div>
+          <button @click="turnLeft"
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">←</button>
+          <button @click="moveBackward"
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">↓</button>
+          <button @click="turnRight"
+            class="bg-gray-800 hover:bg-gray-700 p-4 rounded-xl text-2xl border-b-4 border-gray-950 active:border-b-0 active:translate-y-1">→</button>
+        </div>
+        <div style="width: 20%;">
+          <!-- アビリティ表示要素 -->
+          <div v-if="gameState === 'play'" class="flex-col gap-2">
+            <button @click="openAbilityModal('clairvoyance')"
+              class="flex-1 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/50 py-2 px-1 rounded text-[10px] font-bold tracking-tighter transition active:scale-95">
+              🔮 千里眼 <span class="text-blue-400"> / 20</span>
+            </button>
+            <button @click="openAbilityModal('heal')"
+              class="flex-1 bg-blue-900/40 hover:bg-blue-800/60 border border-blue-500/50 py-2 px-1 rounded text-[10px] font-bold tracking-tighter transition active:scale-95">
+              ✨ 治療 <span class="text-blue-400"> / 30</span>
+            </button>
+            <h2 class="text-1xl font-serif font-bold italic text-gray-400">B{{ floor }}F</h2>
+            <div class="text-right">
+              <div class="text-[10px] font-mono text-gray-500 uppercase">POS: {{ player.x }},{{ player.y }} / {{
+                directionName }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- アビリティ確認ポップアップ -->
+      <div v-if="selectedAbility"
+        class="fixed inset-0 z-[250] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+        <div class="bg-gray-800 border-2 border-blue-600 rounded-lg p-6 w-full max-w-[280px] shadow-2xl">
+          <h3 class="text-blue-400 font-bold mb-1 text-center uppercase tracking-widest">{{ selectedAbility.name }}</h3>
+          <p class="text-[10px] text-center mb-4">{{ selectedAbility.desc }}</p>
+          <h3 class="font-bold mb-1 text-center uppercase tracking-widest">消費マナ：{{ selectedAbility.cost }}</h3>
+          <div class="flex flex-col gap-2">
+            <button @click="useAbility" :disabled="player.mana < selectedAbility.cost"
+              class="w-full bg-blue-600 hover:bg-blue-500 disabled:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-2 rounded text-xs transition">
+              使う
+            </button>
+            <button @click="selectedAbility = null" class="w-full text-[10px] text-gray-500 hover:text-white py-1">
+              キャンセル
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- クイズエリア -->
+      <transition name="fade">
+        <div v-if="gameState === 'quiz'"
+          class="mb-2 p-4 bg-gray-900 rounded-lg border-2 border-red-900 shadow-2xl flex flex-col min-h-[200px] overflow-y-auto">
+          <div
+            class="text-red-600 font-bold mb-1 text-xs tracking-[0.2em] animate-pulse text-center uppercase text-white">
+            Battle Encounter
+          </div>
+          <p class="text-sm mb-4 leading-relaxed font-bold text-white">{{ currentQuiz.question }}</p>
+          <div class="grid grid-cols-1 gap-2">
+            <button v-for="(choice, idx) in currentQuiz.choices" :key="idx" @click="answerQuiz(idx + 1)"
+              class="text-xs bg-gray-800 hover:bg-red-900 p-3 rounded text-left border border-gray-700 transition active:scale-95 text-gray-300">
+              <span class="text-red-500 mr-2 font-bold">{{ idx + 1 }}.</span> {{ choice }}
+            </button>
+          </div>
+        </div>
+      </transition>
+
+      <transition name="fade">
+        <div v-if="gameState === 'result'"
+          class="mb-2 p-6 bg-gray-900 rounded-lg border-2 border-yellow-600 shadow-[0_0_30px_rgba(202,138,4,0.3)] flex flex-col items-center">
+          <div class="text-yellow-500 font-black text-xl tracking-[0.3em] mb-4 uppercase italic">Victory!</div>
+
+          <div v-if="currentQuiz.explanation"
+            class="w-full mb-4 p-3 bg-gray-800 border-l-4 border-yellow-600 rounded text-xs leading-relaxed">
+            <div class="text-[10px] text-yellow-600 font-bold mb-1 uppercase">Explanation</div>
+            <p class="text-gray-300">{{ currentQuiz?.explanation || '' }}</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 w-full mb-6">
+            <div class="bg-gray-800 p-3 rounded border border-gray-700 text-center">
+              <div class="text-[10px] text-gray-500 uppercase">Gold Get</div>
+              <div class="text-lg font-bold text-yellow-500">+ {{ lastRewards.gold }}</div>
+            </div>
+            <div class="bg-gray-800 p-3 rounded border border-gray-700 text-center">
+              <div class="text-[10px] text-gray-500 uppercase">Mana Get</div>
+              <div class="text-lg font-bold text-blue-400">+ {{ lastRewards.mana }}</div>
+            </div>
+          </div>
+
+          <button @click="closeResult"
+            class="w-full bg-yellow-600 hover:bg-yellow-500 text-white font-bold py-3 rounded shadow-lg transition active:scale-95 uppercase tracking-widest text-xs">
+            閉じる
+          </button>
+        </div>
+      </transition>
+
+      <!-- マップ表示エリア -->
+      <div v-if="gameState === 'play'" class="flex flex-col items-center">
+
+        <div class="p-1 bg-gray-800 rounded-lg border border-gray-700 min-w-[280px]">
+          <div v-if="map && map.length > 0 && hasMap" class="">
+            <div class="grid gap-px bg-gray-700 p-px rounded overflow-hidden mx-auto mb-2"
+              :style="`grid-template-columns: repeat(${map[0].length}, 1fr)`">
+              <template v-for="(row, y) in map" :key="y">
+                <div v-for="(cell, x) in row" :key="x"
+                  class="aspect-square text-[10px] flex items-center justify-center relative"
+                  :class="cell === 0 ? 'bg-gray-800' : (cell === 2 ? 'bg-orange-800' : (cell === 3 ? 'bg-red-900/40' : (cell === 4 ? 'bg-green-900/40' : 'bg-gray-900')))">
+                  <span v-if="player.x === x && player.y === y" class="text-yellow-400 font-bold z-20 text-[11px]">
+                    {{ directionArrow }}
+                  </span>
+                  <span v-else-if="cell === 2" class="text-orange-500">▼</span>
+                  <span v-else-if="cell === 3" class="text-red-600 text-[8px]">●</span>
+                  <span v-else-if="cell === 4" class="text-green-500 text-[8px]">📜</span>
+                </div>
+              </template>
+            </div>
+            <div class="flex justify-between items-center text-[10px]">
+              <h2 class="uppercase text-gray-500 font-bold tracking-widest">Auto Map</h2>
+              <div class="flex gap-3 text-gray-400">
+                <span class="flex items-center"><span class="w-2 h-2 bg-orange-900 mr-1"></span>階</span>
+                <span class="flex items-center"><span class="w-2 h-2 bg-red-900 mr-1"></span>敵</span>
+                <span class="flex items-center"><span class="w-2 h-2 bg-green-900 mr-1"></span>？</span>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="gameState === 'play'"
+            class="flex items-center justify-center border-2 border-dashed border-gray-700 rounded-lg w-full h-[120px]">
+            <p class="text-[10px] text-gray-600 font-bold uppercase tracking-widest text-center">
+              Map data required<br><span class="text-[8px] opacity-50">Find a scroll (📜) or use Clairvoyance</span>
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 3. ゲームオーバー画面 -->
+    <div v-if="gameState === 'gameover'"
+      class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[200] p-10 text-center">
+      <div class="text-5xl font-black text-red-700 mb-4 tracking-widest animate-pulse">DEFEATED</div>
+      <div class="w-24 h-1 bg-red-900 mb-6"></div>
+      <p class="text-gray-400 mb-10 font-serif italic text-sm">Your journey ends in B{{ floor }}F...</p>
+      <button @click="startGame"
+        class="w-full max-w-xs bg-red-900 hover:bg-red-800 text-white font-bold py-4 px-6 rounded-lg transition duration-300 border-2 border-red-600 shadow-[0_0_20px_rgba(220,38,38,0.3)] uppercase tracking-widest">
+        再スタート
+      </button>
+      <button @click="gameState = 'title'" class="mt-4 text-xs text-gray-600 hover:text-gray-400 underline">
+        タイトルに戻る
+      </button>
+    </div>
+
+    <!-- 階層移動アニメーション -->
+    <transition name="fade">
+      <div v-if="isChangingFloor" class="fixed inset-0 bg-black flex flex-col items-center justify-center z-[900]">
+        <div class="text-3xl font-serif italic tracking-widest animate-pulse text-white mb-4">
+          Descending...
+        </div>
+        <div class="text-yellow-600 font-bold tracking-tighter text-xl uppercase text-white">B{{ floor }}F</div>
+      </div>
+    </transition>
+  </div>
+
+  <script>
+    const { createApp, ref, computed, onMounted, onUnmounted } = Vue;
+
+    createApp({
+      setup() {
+        const gameState = ref('title');
+        const quizData = ref([]);
+        const currentQuiz = ref({ question: '', explanation: '', correctIndex: 0, choices: [] });
+        const quizFeedback = ref("");
+        const floor = ref(0);
+        const map = ref([]);
+        const player = ref({ x: 0, y: 0, dir: 1, hp: 100, gold: 0, mana: 0 });
+        const isChangingFloor = ref(false);
+        const hasMap = ref(false); // マップ表示フラグ
+        const lastRewards = ref({ gold: 0, mana: 0 });
+
+        // アビリティ関連
+        const selectedAbility = ref(null);
+        const isAbilityActive = ref(false);
+        const abilities = {
+          clairvoyance: { id: 'clairvoyance', name: '千里眼', desc: '全マップを表示します。', cost: 20 },
+          heal: { id: 'heal', name: '治療', desc: 'HPを30回復します。', cost: 30 }
+        };
+
+        // 演出用フラグ
+        const isDamaged = ref(false);
+        const isEnemyDying = ref(false);
+
+        // HPバーの色を計算
+        const hpColor = computed(() => {
+          if (player.value.hp > 60) return '#22c55e'; // Green-500
+          if (player.value.hp > 25) return '#eab308'; // Yellow-500
+          return '#ef4444'; // Red-500
+        });
+
+        // 近くにアイテムがあるかチェック (5x5範囲)
+        const isItemNearby = computed(() => {
+          if (!map.value || map.value.length === 0) return false;
+          const px = player.value.x;
+          const py = player.value.y;
+
+          for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+              const ty = py + dy;
+              const tx = px + dx;
+              if (map.value[ty] && map.value[ty][tx] === 4) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+
+        // 近くに階段があるかチェック (5x5範囲)
+        const isStairsNearby = computed(() => {
+          if (!map.value || map.value.length === 0) return false;
+          const px = player.value.x;
+          const py = player.value.y;
+
+          for (let dy = -2; dy <= 2; dy++) {
+            for (let dx = -2; dx <= 2; dx++) {
+              const ty = py + dy;
+              const tx = px + dx;
+              if (map.value[ty] && map.value[ty][tx] === 2) {
+                return true;
+              }
+            }
+          }
+          return false;
+        });
+
+        // --- CSVパース ---
+        const handleFileUpload = (event) => {
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const text = e.target.result;
+            const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+            const dataLines = lines.slice(1);
+
+            quizData.value = dataLines.map(line => {
+              const cols = line.split(',').map(c => c.trim());
+              const question = cols[0];
+              const explanation = cols[1]; // 追加：2カラム目を解説として取得
+              const correctIndex = parseInt(cols[2]) || 1; // 1→2へ変更
+              const choices = cols.slice(3, 8).filter(c => c !== ""); // 2,7→3,8へ変更
+              return { question, explanation, correctIndex, choices }; // explanationを追加
+            }).filter(q => q.question && q.choices.length > 0);
+          };
+          reader.readAsText(file);
+        };
+
+        const startGame = () => {
+          player.value.hp = 100;
+          player.value.gold = 0;
+          player.value.mana = 0;
+          gameState.value = 'play';
+          hasMap.value = false;
+          selectedAbility.value = null;
+          createEntrance();
+        };
+
+        const generateRandomMap = () => {
+          const size = 15;
+          const newMap = Array.from({ length: size }, () => Array(size).fill(0));
+          const dig = (x, y) => {
+            newMap[y][x] = 1;
+            const dirs = [[0, -2], [0, 2], [-2, 0], [2, 0]].sort(() => Math.random() - 0.5);
+            for (const [dx, dy] of dirs) {
+              const nx = x + dx, ny = y + dy;
+              if (nx > 0 && nx < size - 1 && ny > 0 && ny < size - 1 && newMap[ny][nx] === 0) {
+                newMap[y + dy / 2][x + dx / 2] = 1;
+                dig(nx, ny);
+              }
+            }
+          };
+          const startX = 1 + Math.floor(Math.random() * ((size - 1) / 2)) * 2;
+          const startY = 1 + Math.floor(Math.random() * ((size - 1) / 2)) * 2;
+          dig(startX, startY);
+          player.value.x = startX;
+          player.value.y = startY;
+          let stairsX, stairsY, maxDist = -1;
+          const floors = [];
+          for (let y = 1; y < size - 1; y++) {
+            for (let x = 1; x < size - 1; x++) {
+              if (newMap[y][x] === 1) {
+                floors.push({ x, y });
+                const dist = Math.abs(x - startX) + Math.abs(y - startY);
+                if (dist > maxDist) { maxDist = dist; stairsX = x; stairsY = y; }
+              }
+            }
+          }
+          newMap[stairsY][stairsX] = 2;
+
+          // 敵の配置
+          const enemyCount = Math.floor(floors.length * 0.1);
+          let placed = 0;
+          while (placed < enemyCount) {
+            const target = floors[Math.floor(Math.random() * floors.length)];
+            if (newMap[target.y][target.x] === 1 && (target.x !== startX || target.y !== startY) && (target.x !== stairsX || target.y !== stairsY)) {
+              newMap[target.y][target.x] = 3;
+              placed++;
+            }
+          }
+
+          // 地図アイテムの配置 (1つ)
+          let itemPlaced = false;
+          while (!itemPlaced) {
+            const target = floors[Math.floor(Math.random() * floors.length)];
+            if (newMap[target.y][target.x] === 1 && (target.x !== startX || target.y !== startY) && (target.x !== stairsX || target.y !== stairsY)) {
+              newMap[target.y][target.x] = 4;
+              itemPlaced = true;
+            }
+          }
+
+          map.value = newMap;
+          hasMap.value = false; // 新しい階層では地図を失う
+        };
+
+        const createEntrance = () => {
+          floor.value = 1;
+          const size = 11;
+          const newMap = Array.from({ length: size }, () => Array(size).fill(0));
+          for (let y = 4; y <= 6; y++) for (let x = 4; x <= 6; x++) newMap[y][x] = 1;
+          newMap[5][5] = 2;
+          newMap[4][4] = 4; // 最初だけチュートリアル的に地図を配置
+          map.value = newMap;
+          player.value = { ...player.value, x: 4, y: 5, dir: 1 };
+          hasMap.value = false;
+        };
+
+        const triggerQuiz = () => {
+          if (quizData.value.length === 0) return;
+          quizFeedback.value = "";
+          isEnemyDying.value = false;
+          const randomQuiz = quizData.value[Math.floor(Math.random() * quizData.value.length)];
+          currentQuiz.value = randomQuiz;
+          gameState.value = 'quiz';
+        };
+
+        const answerQuiz = (index) => {
+          if (index === currentQuiz.value.correctIndex) {
+            quizFeedback.value = "CORRECT!!";
+            isEnemyDying.value = true;
+
+            // 敵を倒したときの報酬 (乱数 1〜3)
+            const g = Math.floor(Math.random() * 3) + 1;
+            const m = Math.floor(Math.random() * 3) + 1;
+
+            // リザルト画面に渡す値を保存
+            lastRewards.value = { gold: g, mana: m };
+
+            player.value.gold += g;
+            player.value.mana += m;
+
+            setTimeout(() => {
+              isEnemyDying.value = false;
+              map.value[player.value.y][player.value.x] = 1; // 敵を消す
+              gameState.value = 'wait';
+              setTimeout(() => { gameState.value = 'result'; }, 300); // ★リザルト画面へ遷移
+              quizFeedback.value = "";
+            }, 500);
+          } else {
+            const damage = Math.floor(Math.random() * 11) + 10;
+            player.value.hp -= damage;
+            quizFeedback.value = `WRONG... -${damage} HP!`;
+            isDamaged.value = true;
+            setTimeout(() => { isDamaged.value = false; }, 400);
+
+            if (player.value.hp <= 0) {
+              player.value.hp = 0;
+              setTimeout(() => { gameState.value = 'gameover'; }, 1000);
+            } else {
+              setTimeout(() => { quizFeedback.value = ""; }, 1000);
+            }
+          }
+        };
+
+        const closeResult = () => {
+          gameState.value = 'wait';
+          setTimeout(() => { gameState.value = 'play'; }, 300);
+        };
+
+        // アビリティ処理
+        const openAbilityModal = (abilityKey) => {
+          selectedAbility.value = abilities[abilityKey];
+        };
+
+        const useAbility = () => {
+          if (!selectedAbility.value || player.value.mana < selectedAbility.value.cost) return;
+
+          // マナ消費
+          player.value.mana -= selectedAbility.value.cost;
+
+          // 効果の発動
+          if (selectedAbility.value.id === 'clairvoyance') {
+            hasMap.value = true;
+          } else if (selectedAbility.value.id === 'heal') {
+            player.value.hp = Math.min(100, player.value.hp + 30);
+          }
+
+          // 演出
+          isAbilityActive.value = true;
+          setTimeout(() => { isAbilityActive.value = false; }, 400);
+
+          // モーダルを閉じる
+          selectedAbility.value = null;
+        };
+
+        const moveForward = () => {
+          if (gameState.value !== 'play' || isChangingFloor.value) return;
+          const vectors = [{ dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }];
+          const v = vectors[player.value.dir];
+          const nx = player.value.x + v.dx, ny = player.value.y + v.dy;
+          checkCell(nx, ny);
+        };
+
+        const moveBackward = () => {
+          if (gameState.value !== 'play' || isChangingFloor.value) return;
+          const vectors = [{ dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }];
+          const v = vectors[player.value.dir];
+          const nx = player.value.x - v.dx, ny = player.value.y - v.dy;
+          checkCell(nx, ny);
+        };
+
+        const checkCell = (nx, ny) => {
+          if (map.value[ny] && map.value[ny][nx] !== 0) {
+            player.value.x = nx; player.value.y = ny;
+            const cell = map.value[ny][nx];
+            if (cell === 3) triggerQuiz();
+            else if (cell === 2) nextFloor();
+            else if (cell === 4) {
+              hasMap.value = true;
+              map.value[ny][nx] = 1; // アイテム取得後は床にする
+            }
+          }
+        };
+
+        const nextFloor = () => {
+          isChangingFloor.value = true;
+          setTimeout(() => {
+            floor.value++;
+            generateRandomMap();
+            isChangingFloor.value = false;
+          }, 800);
+        };
+
+        const directionName = computed(() => ["NORTH", "EAST", "SOUTH", "WEST"][player.value.dir]);
+        const directionArrow = computed(() => ["▲", "▶", "▼", "◀"][player.value.dir]);
+
+        const view = computed(() => {
+          if (!map.value || map.value.length === 0) return null;
+          const { x, y, dir } = player.value;
+          const vectors = [{ dx: 0, dy: -1 }, { dx: 1, dy: 0 }, { dx: 0, dy: 1 }, { dx: -1, dy: 0 }];
+          const getMap = (tx, ty) => (map.value[ty] && tx >= 0 && tx < map.value[0].length) ? map.value[ty][tx] : 0;
+          const f = vectors[dir], l = vectors[(dir + 3) % 4], r = vectors[(dir + 1) % 4];
+          return {
+            front1: getMap(x + f.dx, y + f.dy),
+            left1: getMap(x + l.dx, y + l.dy),
+            right1: getMap(x + r.dx, y + r.dy),
+            front2: getMap(x + f.dx * 2, y + f.dy * 2),
+            left2: getMap(x + f.dx + l.dx, y + f.dy + l.dy),
+            right2: getMap(x + f.dx + r.dx, y + f.dy + r.dy),
+          };
+        });
+
+        const turnLeft = () => { if (gameState.value === 'play') player.value.dir = (player.value.dir + 3) % 4 };
+        const turnRight = () => { if (gameState.value === 'play') player.value.dir = (player.value.dir + 1) % 4 };
+
+        const handleKeydown = (e) => {
+          if (gameState.value !== 'play' || selectedAbility.value) return;
+          switch (e.key) {
+            case "ArrowUp": moveForward(); break;
+            case "ArrowDown": moveBackward(); break;
+            case "ArrowLeft": turnLeft(); break;
+            case "ArrowRight": turnRight(); break;
+          }
+        };
+
+        onMounted(() => window.addEventListener("keydown", handleKeydown));
+        onUnmounted(() => window.removeEventListener("keydown", handleKeydown));
+
+        return {
+          gameState, quizData, currentQuiz, quizFeedback, floor, map, player, view, directionName, directionArrow, isChangingFloor, hpColor,
+          isDamaged, isEnemyDying, hasMap, isItemNearby, isStairsNearby,
+          selectedAbility, isAbilityActive, openAbilityModal, useAbility,
+          handleFileUpload, startGame, moveForward, moveBackward, turnLeft, turnRight, answerQuiz, closeResult, lastRewards
+        };
+      }
+    }).mount('#app');
+  </script>
+
+</body>
+
+</html>
