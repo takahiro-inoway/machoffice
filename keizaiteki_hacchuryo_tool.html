@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>経済的発注量（EOQ）シミュレーター</title>
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;700&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Vue 3 -->
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <!-- mo.js (Fixed CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@mojs/core@1.13.0/lib/mojs.min.js"></script>
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      background-color: #fcfcfc;
+      color: #333;
+    }
+
+    .container {
+      max-width: 900px;
+      margin-top: 50px;
+      margin-bottom: 50px;
+    }
+
+    .card {
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      background: #ffffff;
+      box-shadow: none;
+    }
+
+    .step-indicator {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+    }
+
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background-color: #e0e0e0;
+      transition: background-color 0.3s;
+    }
+
+    .step-dot.active {
+      background-color: #0d6efd;
+    }
+
+    .btn-custom {
+      border-radius: 50px;
+      padding: 10px 30px;
+      font-weight: bold;
+      transition: all 0.2s;
+    }
+
+    .input-group-text {
+      background-color: #f8f9fa;
+      border-left: none;
+    }
+
+    .form-control {
+      border-right: none;
+    }
+
+    .form-control:focus {
+      box-shadow: none;
+      border-color: #0d6efd;
+    }
+
+    .result-box {
+      background-color: #f8faff;
+      border: 1px solid #d1e3ff;
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 350px;
+      width: 100%;
+      margin-top: 20px;
+    }
+
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.3s;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+
+    .info-tip {
+      font-size: 0.85rem;
+      color: #666;
+      background: #f1f3f5;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .worksheet {
+      background-color: #fdfdfd;
+      border: 1px dashed #ced4da;
+      border-radius: 8px;
+      padding: 15px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="app" class="container">
+    <div class="text-center mb-5">
+      <h1 class="fw-bold">経済的発注量計算ツール</h1>
+    </div>
+
+    <!-- ステップ表示 -->
+    <div class="step-indicator px-5" v-if="step <= 3">
+      <div v-for="i in 3" :key="i" class="step-dot" :class="{ active: step >= i }"></div>
+    </div>
+
+    <div class="card p-4 shadow-sm border-0">
+      <transition name="fade" mode="out-in">
+        <!-- STEP 1: 年間需要 -->
+        <div v-if="step === 1" key="step1">
+          <span class="badge bg-primary mb-2">Step 1 / 3</span>
+          <h3>年間に合計でいくつ必要ですか？</h3>
+          <p class="text-muted small">1年間に売れる見込み数や、使用する総数量を入力してください。</p>
+          <div class="mb-4 mt-4">
+            <div class="input-group">
+              <input type="number" v-model.number="inputs.annualDemand" class="form-control form-control-lg"
+                placeholder="例: 1200">
+              <span class="input-group-text">個 / 年</span>
+            </div>
+          </div>
+          <div class="d-flex justify-content-end">
+            <button @click="nextStep" class="btn btn-primary btn-custom" :disabled="!inputs.annualDemand">次へ進む</button>
+          </div>
+        </div>
+
+        <!-- STEP 2: 発注費用 -->
+        <div v-else-if="step === 2" key="step2">
+          <span class="badge bg-primary mb-2">Step 2 / 3</span>
+          <h3>1回の「注文手続き」にいくらかかりますか？</h3>
+          <p class="text-muted small mb-4">送料や事務コストなど、注文のたびに発生する費用の合計です。</p>
+
+          <!-- 発注費用内訳ワークシート -->
+          <div class="worksheet mb-4">
+            <h6 class="fw-bold mb-3 small"><i class="bi bi-calculator"></i> 発注費用の内訳シミュレーター（入力すると自動合計）</h6>
+            <div class="row g-2 mb-2">
+              <div class="col-md-6">
+                <label class="x-small text-muted">送料（1回分）</label>
+                <input type="number" v-model.number="worksheet.shipping" class="form-control form-control-sm"
+                  @input="calcOrderCostFromWorksheet">
+              </div>
+              <div class="col-md-6">
+                <label class="x-small text-muted">振込・支払手数料</label>
+                <input type="number" v-model.number="worksheet.fee" class="form-control form-control-sm"
+                  @input="calcOrderCostFromWorksheet">
+              </div>
+            </div>
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="x-small text-muted">作業時給 (円)</label>
+                <input type="number" v-model.number="worksheet.wage" class="form-control form-control-sm"
+                  @input="calcOrderCostFromWorksheet">
+              </div>
+              <div class="col-md-4">
+                <label class="x-small text-muted">作業時間 (分/回)</label>
+                <input type="number" v-model.number="worksheet.minutes" class="form-control form-control-sm"
+                  @input="calcOrderCostFromWorksheet">
+              </div>
+              <div class="col-md-4">
+                <label class="x-small text-muted">その他諸経費</label>
+                <input type="number" v-model.number="worksheet.other" class="form-control form-control-sm"
+                  @input="calcOrderCostFromWorksheet">
+              </div>
+            </div>
+          </div>
+
+          <div class="mb-4">
+            <label class="form-label fw-bold">1回あたりの合計発注費用</label>
+            <div class="input-group">
+              <input type="number" v-model.number="inputs.orderCost"
+                class="form-control form-control-lg border-primary text-primary fw-bold" placeholder="例: 2000">
+              <span class="input-group-text border-primary text-primary">円 / 回</span>
+            </div>
+            <div class="info-tip">
+              <small>※ ワークシートを使わず、直接この欄に合計金額を入力（上書き）することも可能です。</small>
+            </div>
+          </div>
+
+          <div class="d-flex justify-content-between">
+            <button @click="prevStep" class="btn btn-outline-secondary btn-custom">戻る</button>
+            <button @click="nextStep" class="btn btn-primary btn-custom" :disabled="!inputs.orderCost">次へ進む</button>
+          </div>
+        </div>
+
+        <!-- STEP 3: 保管費用 -->
+        <div v-else-if="step === 3" key="step3">
+          <span class="badge bg-primary mb-2">Step 3 / 3</span>
+          <h3>商品1個を1年間置いておくと、いくらかかりますか？</h3>
+          <p class="text-muted small">在庫として抱えることで発生する「維持費」です。</p>
+          <div class="mb-4 mt-4">
+            <div class="input-group">
+              <input type="number" v-model.number="inputs.holdingCost" class="form-control form-control-lg"
+                placeholder="例: 100">
+              <span class="input-group-text">円 / 個・年</span>
+            </div>
+            <div class="info-tip">
+              <strong>考え方のヒント：</strong> 倉庫の賃料、冷蔵・冷凍代、保険料、売れ残りによる劣化・廃棄リスクなど。<br>
+              <small>一般的には、商品価格の 10%〜25% 程度を維持費として計算することが多いです。</small>
+            </div>
+          </div>
+          <div class="d-flex justify-content-between">
+            <button @click="prevStep" class="btn btn-outline-secondary btn-custom">戻る</button>
+            <button @click="calculateEOQ" class="btn btn-success btn-custom"
+              :disabled="!inputs.holdingCost">シミュレーション実行</button>
+          </div>
+        </div>
+
+        <!-- RESULT: 結果表示 -->
+        <div v-else-if="step === 4" key="result">
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="m-0 fw-bold">シミュレーション結果</h3>
+            <button @click="resetAll" class="btn btn-sm btn-outline-secondary">最初から入力</button>
+          </div>
+
+          <div class="row g-4 mb-4">
+            <div class="col-lg-6">
+              <div class="result-box h-100 d-flex flex-column justify-content-center text-center">
+                <div class="text-muted mb-2">理想的な1回あたりの発注量</div>
+                <div class="display-4 fw-bold text-primary">{{ Math.round(results.eoq) }} <span class="h4">個</span>
+                </div>
+                <hr>
+                <div class="row text-center mt-2">
+                  <div class="col-6 border-end">
+                    <div class="small text-muted">年間発注回数</div>
+                    <div class="h5 fw-bold">{{ results.eoq > 0 ? (inputs.annualDemand / results.eoq).toFixed(1) : 0 }}回
+                    </div>
+                  </div>
+                  <div class="col-6">
+                    <div class="small text-muted">年間の合計コスト</div>
+                    <div class="h5 fw-bold">約 {{ Math.round(results.totalCost).toLocaleString() }}円</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="p-3 bg-light rounded h-100">
+                <h6 class="fw-bold mb-3 border-bottom pb-2">入力データの調整</h6>
+                <div class="mb-2">
+                  <label class="small text-muted mb-1">年間需要 (個)</label>
+                  <input type="number" v-model.number="inputs.annualDemand" class="form-control form-control-sm"
+                    @input="updateCharts">
+                </div>
+                <div class="mb-2">
+                  <label class="small text-muted mb-1">発注費用 (円/回)</label>
+                  <input type="number" v-model.number="inputs.orderCost" class="form-control form-control-sm"
+                    @input="updateCharts">
+                </div>
+                <div class="mb-3">
+                  <label class="small text-muted mb-1">保管費用 (円/個・年)</label>
+                  <input type="number" v-model.number="inputs.holdingCost" class="form-control form-control-sm"
+                    @input="updateCharts">
+                </div>
+                <div class="alert alert-warning p-2 mb-0" style="font-size: 0.75rem;">
+                  <strong>💡 数量割引がある場合：</strong><br>
+                  この計算は「単価が一定」であることを前提としています。もし「1000個以上で単価5%オフ」などの条件がある場合は、その発注量での総コストを別途比較する必要があります。
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card p-3 border-0 bg-white shadow-sm">
+            <h6 class="fw-bold text-center mb-1">発注量とコストの関係図</h6>
+            <p class="text-center text-muted x-small mb-3">発注量を増やすと発注コストは減りますが、保管コストが増大します。</p>
+            <div class="chart-container">
+              <canvas id="eoqChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </div>
+  </div>
+
+  <script>
+    window.onload = function () {
+      const { createApp, ref, reactive, nextTick } = Vue;
+
+      createApp({
+        setup() {
+          const step = ref(1);
+          const inputs = reactive({
+            annualDemand: null,
+            orderCost: null,
+            holdingCost: null
+          });
+
+          // 発注費用の内訳用
+          const worksheet = reactive({
+            shipping: null,
+            fee: null,
+            wage: null,
+            minutes: null,
+            other: null
+          });
+
+          const results = reactive({
+            eoq: 0,
+            totalCost: 0
+          });
+
+          let chartInstance = null;
+
+          const burstEffect = (x, y) => {
+            try {
+              if (typeof mojs !== 'undefined') {
+                new mojs.Burst({
+                  left: x, top: y,
+                  radius: { 0: 60 },
+                  count: 10,
+                  children: {
+                    shape: 'circle',
+                    fill: ['#0d6efd', '#6610f2', '#20c997'],
+                    duration: 600
+                  }
+                }).play();
+              }
+            } catch (e) {
+              console.warn("mojs error:", e);
+            }
+          };
+
+          const nextStep = (e) => {
+            if (e) burstEffect(e.pageX, e.pageY);
+            step.value++;
+          };
+
+          const prevStep = () => {
+            step.value--;
+          };
+
+          // ワークシートから発注費用を計算
+          const calcOrderCostFromWorksheet = () => {
+            const labor = ((worksheet.wage || 0) / 60) * (worksheet.minutes || 0);
+            const total = (worksheet.shipping || 0) + (worksheet.fee || 0) + labor + (worksheet.other || 0);
+            inputs.orderCost = Math.round(total);
+          };
+
+          const calculateEOQ = (e) => {
+            if (e) burstEffect(e.pageX, e.pageY);
+
+            const D = inputs.annualDemand || 0;
+            const S = inputs.orderCost || 0;
+            const H = inputs.holdingCost || 1;
+
+            results.eoq = Math.sqrt((2 * D * S) / H);
+            results.totalCost = results.eoq > 0 ? (D / results.eoq) * S + (results.eoq / 2) * H : 0;
+
+            step.value = 4;
+
+            setTimeout(() => {
+              nextTick(() => {
+                renderChart();
+              });
+            }, 350);
+          };
+
+          const updateCharts = () => {
+            const D = inputs.annualDemand || 0;
+            const S = inputs.orderCost || 0;
+            const H = inputs.holdingCost || 1;
+
+            results.eoq = Math.sqrt((2 * D * S) / H);
+            results.totalCost = results.eoq > 0 ? (D / results.eoq) * S + (results.eoq / 2) * H : 0;
+            renderChart();
+          };
+
+          const resetAll = () => {
+            step.value = 1;
+            inputs.annualDemand = null;
+            inputs.orderCost = null;
+            inputs.holdingCost = null;
+            Object.keys(worksheet).forEach(key => worksheet[key] = null);
+          };
+
+          const renderChart = () => {
+            const canvasElement = document.getElementById('eoqChart');
+            if (!canvasElement) return;
+            const ctx = canvasElement.getContext('2d');
+
+            const eoqVal = results.eoq || 100;
+            const labels = [];
+            const holdingCosts = [];
+            const orderingCosts = [];
+            const totalCosts = [];
+
+            const start = Math.max(1, eoqVal * 0.2);
+            const end = eoqVal * 2.5;
+            const stepSize = (end - start) / 20;
+
+            for (let q = start; q <= end; q += stepSize) {
+              labels.push(Math.round(q));
+              const h = (q / 2) * (inputs.holdingCost || 0);
+              const o = ((inputs.annualDemand || 0) / q) * (inputs.orderCost || 0);
+              holdingCosts.push(h);
+              orderingCosts.push(o);
+              totalCosts.push(h + o);
+            }
+
+            if (chartInstance) {
+              chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+              type: 'line',
+              data: {
+                labels: labels,
+                datasets: [
+                  {
+                    label: '年間の合計コスト',
+                    data: totalCosts,
+                    borderColor: '#0d6efd',
+                    borderWidth: 4,
+                    pointRadius: 2,
+                    pointBackgroundColor: '#0d6efd',
+                    fill: false,
+                    tension: 0.3
+                  },
+                  {
+                    label: '保管維持コスト',
+                    data: holdingCosts,
+                    borderColor: '#ffc107',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                  },
+                  {
+                    label: '発注固定コスト',
+                    data: orderingCosts,
+                    borderColor: '#198754',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    pointRadius: 0,
+                    fill: false
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                  legend: { position: 'bottom' },
+                  tooltip: {
+                    callbacks: {
+                      label: function (context) {
+                        return context.dataset.label + ': ' + Math.round(context.raw).toLocaleString() + '円';
+                      }
+                    }
+                  }
+                },
+                scales: {
+                  y: {
+                    ticks: { display: true },
+                    title: { display: true, text: '年間コスト (円)' }
+                  },
+                  x: {
+                    title: { display: true, text: '1回あたりの発注量 (個)' }
+                  }
+                }
+              }
+            });
+          };
+
+          return {
+            step,
+            inputs,
+            worksheet,
+            results,
+            nextStep,
+            prevStep,
+            calcOrderCostFromWorksheet,
+            calculateEOQ,
+            updateCharts,
+            resetAll
+          };
+        }
+      }).mount('#app');
+    };
+  </script>
+
+</body>
+
+</html>
